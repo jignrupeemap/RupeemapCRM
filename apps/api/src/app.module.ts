@@ -16,6 +16,7 @@ import { NotificationsController } from './notifications/notifications.controlle
 import { HealthController } from './health/health.controller';
 import { InactivityController } from './inactivity/inactivity.controller';
 import { InactivityService } from './inactivity/inactivity.service';
+import { ReportsController } from './reports/reports.controller';
 
 @Module({
   imports: [CommonModule],
@@ -29,6 +30,7 @@ import { InactivityService } from './inactivity/inactivity.service';
     NotificationsController,
     HealthController,
     InactivityController,
+    ReportsController,
   ],
   providers: [
     AuthService,

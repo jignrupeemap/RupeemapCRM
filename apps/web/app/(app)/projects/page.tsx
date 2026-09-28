@@ -1,6 +1,6 @@
 'use client';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { MapPin, Pencil, Plus } from 'lucide-react';
+import { MapPin, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { MEASUREMENT_UNITS, MEASUREMENT_UNIT_LABELS, PROJECT_TYPES, UNIT_TYPES, type MeasurementUnit } from '@rupeemap/shared';
@@ -8,7 +8,8 @@ import { api, ApiError } from '@/lib/api';
 import { formatINRCompact } from '@/lib/format';
 import { useCan } from '@/lib/session';
 import { PageHeader } from '@/components/shell';
-import { Badge, Button, Card, cx, EmptyState, Field, Input, Modal, Pagination, Select, Skeleton } from '@/components/ui';
+import { Badge, Button, Card, cx, EmptyState, Field, Input, Modal, Pagination, Select, Skeleton, Tab, TabList, TabPanel, Tabs } from '@/components/ui';
+import { ProjectAnalytics } from '@/components/project-analytics';
 
 interface Project {
   id: string;
@@ -29,6 +30,35 @@ const title = (s: string) => s.charAt(0) + s.slice(1).toLowerCase();
 
 export default function ProjectsPage() {
   const can = useCan();
+  const [view, setView] = useState('directory');
+  return (
+    <div>
+      <PageHeader
+        title="Project Master"
+        sub="Approved projects to link with cases, and how each project is performing. Everyone can view; only Rupeemap can add or edit."
+      />
+      {can('REPORT_VIEW') ? (
+        <Tabs value={view} onValueChange={setView}>
+          <TabList>
+            <Tab value="directory">Projects</Tab>
+            <Tab value="analytics">Project-wise analysis</Tab>
+          </TabList>
+          <TabPanel value="directory" className="pt-4">
+            <Directory />
+          </TabPanel>
+          <TabPanel value="analytics" className="pt-4">
+            <ProjectAnalytics />
+          </TabPanel>
+        </Tabs>
+      ) : (
+        <Directory />
+      )}
+    </div>
+  );
+}
+
+function Directory() {
+  const can = useCan();
   const [q, setQ] = useState('');
   const [type, setType] = useState('');
   const [page, setPage] = useState(1);
@@ -41,17 +71,13 @@ export default function ProjectsPage() {
   });
   return (
     <div>
-      <PageHeader
-        title="Project Master"
-        sub="Approved projects to link with cases. Everyone can view; only Rupeemap can add or edit."
-        actions={manage && <Button icon={<Plus className="h-4 w-4" />} onClick={() => setEditing('new')}>Add project</Button>}
-      />
       <div className="mb-4 flex flex-col gap-2 sm:flex-row">
         <Input placeholder="Search project, city, locality or RERA" value={q} onChange={(e) => (setQ(e.target.value), setPage(1))} className="sm:max-w-sm" aria-label="Search projects" />
         <Select value={type} onChange={(e) => (setType(e.target.value), setPage(1))} className="sm:max-w-[200px]" aria-label="Project type">
           <option value="">All types</option>
           {PROJECT_TYPES.map((t) => <option key={t} value={t}>{title(t)}</option>)}
         </Select>
+        {manage && <Button className="sm:ml-auto" icon={<Plus className="h-4 w-4" />} onClick={() => setEditing('new')}>Add project</Button>}
       </div>
       {list.isLoading ? (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-40 rounded-2xl" />)}</div>
@@ -94,6 +120,17 @@ export default function ProjectsPage() {
 
 function ProjectModal({ project, onClose }: { project: Project | null; onClose: () => void }) {
   const qc = useQueryClient();
+  const can = useCan();
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const del = useMutation({
+    mutationFn: () => api.del(`/projects/${project!.id}`),
+    onSuccess: () => {
+      toast.success('Project deleted. Existing cases keep their project link.');
+      qc.invalidateQueries({ queryKey: ['projects'] });
+      onClose();
+    },
+    onError: (e: ApiError) => toast.error(e.message),
+  });
   const [v, setV] = useState({
     name: project?.name ?? '',
     city: project?.city ?? '',
@@ -122,7 +159,13 @@ function ProjectModal({ project, onClose }: { project: Project | null; onClose: 
   });
   const set = (k: string, val: any) => (setV((p) => ({ ...p, [k]: val })), setErrors((e) => ({ ...e, [k]: '' })));
   return (
-    <Modal open onOpenChange={(o) => !o && onClose()} title={project ? 'Edit project' : 'Add project'} wide footer={<><Button variant="ghost" onClick={onClose}>Cancel</Button><Button loading={m.isPending} onClick={() => m.mutate()}>Save project</Button></>}>
+    <Modal open onOpenChange={(o) => !o && onClose()} title={project ? 'Edit project' : 'Add project'} wide footer={<>
+        {project && can('PROJECT_DELETE') && (
+          confirmDelete
+            ? <Button variant="danger" className="sm:mr-auto" loading={del.isPending} onClick={() => del.mutate()}>Confirm delete</Button>
+            : <Button variant="ghost" className="text-brand-red sm:mr-auto" icon={<Trash2 className="h-4 w-4" />} onClick={() => setConfirmDelete(true)}>Delete</Button>
+        )}
+        <Button variant="ghost" onClick={onClose}>Cancel</Button><Button loading={m.isPending} onClick={() => m.mutate()}>Save project</Button></>}>
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="sm:col-span-2"><Field label="Project name" required htmlFor="pn" error={errors.name}><Input id="pn" value={v.name} onChange={(e) => set('name', e.target.value)} /></Field></div>
         <Field label="City" required htmlFor="pc" error={errors.city}><Input id="pc" value={v.city} onChange={(e) => set('city', e.target.value)} /></Field>
