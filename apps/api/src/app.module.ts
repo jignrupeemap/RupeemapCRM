@@ -17,6 +17,8 @@ import { HealthController } from './health/health.controller';
 import { InactivityController } from './inactivity/inactivity.controller';
 import { InactivityService } from './inactivity/inactivity.service';
 import { ReportsController } from './reports/reports.controller';
+import { ChecklistsController } from './checklists/checklists.controller';
+import { ChecklistsService } from './checklists/checklists.service';
 
 @Module({
   imports: [CommonModule],
@@ -31,12 +33,14 @@ import { ReportsController } from './reports/reports.controller';
     HealthController,
     InactivityController,
     ReportsController,
+    ChecklistsController,
   ],
   providers: [
     AuthService,
     UsersService,
     CasesService,
     InactivityService,
+    ChecklistsService,
     { provide: APP_GUARD, useClass: AuthGuard },
     { provide: APP_INTERCEPTOR, useClass: EnvelopeInterceptor },
     { provide: APP_FILTER, useClass: GlobalExceptionFilter },

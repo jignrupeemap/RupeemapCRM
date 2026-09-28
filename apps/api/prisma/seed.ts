@@ -120,6 +120,59 @@ async function main() {
     }
   }
 
+  if (!(await prisma.checklistTemplate.count())) {
+    const templates: { name: string; loanType?: string; bankId?: string; items: [string, boolean, string?][] }[] = [
+      {
+        name: 'Basic KYC (all loans)',
+        items: [
+          ['PAN card', true],
+          ['Aadhaar card', true],
+          ['Passport-size photograph', true],
+          ['Address proof', true, 'Electricity bill, rent agreement or passport'],
+          ['Bank statement (last 6 months)', true],
+        ],
+      },
+      {
+        name: 'Home Loan: income and property',
+        loanType: 'HOME_LOAN',
+        items: [
+          ['Salary slips (last 3 months)', false, 'Salaried applicants'],
+          ['Form 16 / ITR (last 2 years)', true],
+          ['Sale agreement / allotment letter', true],
+          ['Approved building plan', false],
+          ['Own contribution receipt', false],
+        ],
+      },
+      {
+        name: 'Business Loan: business proof',
+        loanType: 'BUSINESS_LOAN',
+        items: [
+          ['GST registration', true],
+          ['ITR with computation (last 3 years)', true],
+          ['Audited balance sheet and P&L', true],
+          ['Current account statement (12 months)', true],
+        ],
+      },
+      {
+        name: 'HDFC Bank: additional',
+        bankId: banks[0].id,
+        loanType: 'HOME_LOAN',
+        items: [['HDFC application form signed', true], ['Processing fee cheque', true]],
+      },
+    ];
+    for (const t of templates) {
+      await prisma.checklistTemplate.create({
+        data: {
+          name: t.name,
+          loanType: t.loanType,
+          bankId: t.bankId,
+          createdById: admin.id,
+          items: { create: t.items.map(([name, required, hint], n) => ({ name, required, hint, sortOrder: n })) },
+        },
+      });
+    }
+  }
+
   if (!(await prisma.slider.count())) {
     await prisma.slider.createMany({
       data: [

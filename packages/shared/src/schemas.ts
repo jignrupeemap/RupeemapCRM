@@ -146,3 +146,35 @@ export const bankReceiptSchema = z.object({
 export function normalizeName(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 }
+
+const optionalId = z.string().uuid().optional().or(z.literal('').transform(() => undefined)).nullable();
+
+export const checklistTemplateSchema = z.object({
+  name: z.string().trim().min(2, 'Enter a checklist name').max(120),
+  bankId: optionalId,
+  loanType: z.string().trim().max(40).optional().or(z.literal('').transform(() => undefined)).nullable(),
+  projectId: optionalId,
+  product: z.string().trim().max(80).optional().or(z.literal('').transform(() => undefined)).nullable(),
+  active: z.boolean().default(true),
+  items: z
+    .array(
+      z.object({
+        id: z.string().uuid().optional(),
+        name: z.string().trim().min(2, 'Enter the document name').max(120),
+        required: z.boolean().default(true),
+        hint: z.string().trim().max(200).optional().or(z.literal('').transform(() => undefined)),
+        active: z.boolean().default(true),
+      }),
+    )
+    .min(1, 'Add at least one document')
+    .max(80),
+});
+export type ChecklistTemplateInput = z.infer<typeof checklistTemplateSchema>;
+
+export const CHECKLIST_ITEM_STATUSES = ['PENDING', 'RECEIVED', 'NOT_APPLICABLE'] as const;
+export type ChecklistItemStatus = (typeof CHECKLIST_ITEM_STATUSES)[number];
+
+export const caseChecklistUpdateSchema = z.object({
+  status: z.enum(CHECKLIST_ITEM_STATUSES),
+  remarks: z.string().trim().max(300).optional(),
+});

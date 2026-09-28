@@ -21,6 +21,7 @@ import { fmtDate, fmtDateTime, formatINR, formatINRCompact, loanTypeName } from 
 import { useMe } from '@/lib/session';
 import { PageHeader } from '@/components/shell';
 import { CaseActionBar } from '@/components/case-actions';
+import { CaseChecklistTab } from '@/components/checklist';
 import { Badge, Banner, Button, Card, cx, DetailGrid, EmptyState, ErrorState, Field, Input, Modal, PayoutChip, Select, Skeleton, StatusChip, Tab, TabList, TabPanel, Tabs, Textarea } from '@/components/ui';
 
 interface CaseDetail {
@@ -285,9 +286,12 @@ export default function CaseDetailPage() {
             <RemarksTab c={c} disabled={closed} />
           </TabPanel>
 
+          <TabPanel value="checklist">
+            <CaseChecklistTab caseId={c.id} customerName={c.customer.name} customerMobile={c.customer.mobile} />
+          </TabPanel>
+
           {[
-            ['documents', 'Case documents', 'Secure upload of customer documents with version history arrives with the Checklist module (Phase 8).'],
-            ['checklist', 'Document checklist', 'Bank and loan-type checklists with completion progress arrive in Phase 8.'],
+            ['documents', 'Case documents', 'Secure upload of customer documents with version history arrives with private file storage (Phase 9). Track which documents you have in the Checklist tab.'],
             ['insurance', 'Insurance', 'Insurance amount, company, manager and a separate insurance payout arrive in Phase 10.'],
             ['recovery', 'Recovery', 'Bank recovery, demand to partner and WhatsApp reminders arrive in Phase 11.'],
             ['assistance', 'Need Assistance', 'Case-linked assistance requests with assignment and replies arrive in Phase 13.'],

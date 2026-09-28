@@ -71,6 +71,12 @@ enum MeasurementUnit {
   CARPET
 }
 
+enum ChecklistItemStatus {
+  PENDING
+  RECEIVED
+  NOT_APPLICABLE
+}
+
 enum OtpPurpose {
   ACTIVATE
   RESET_PASSWORD
@@ -376,6 +382,7 @@ model LoanCase {
   disbursements     CaseDisbursement[]
   remarks           CaseRemark[]
   payouts           Payout[]
+  checklist         CaseChecklistItem[]
 
   @@index([dsaId, createdAt(sort: Desc)])
   @@index([teamPartnerId, createdAt(sort: Desc)])
@@ -430,6 +437,57 @@ model CaseRemark {
 
   @@index([caseId, createdAt])
   @@map("case_remarks")
+}
+
+/// Document checklist template. Blank bank / loan type / project means "applies to all".
+model ChecklistTemplate {
+  id          String    @id @default(uuid()) @db.Uuid
+  name        String
+  bankId      String?   @map("bank_id") @db.Uuid
+  loanType    String?   @map("loan_type")
+  projectId   String?   @map("project_id") @db.Uuid
+  product     String?
+  active      Boolean   @default(true)
+  createdById String    @map("created_by") @db.Uuid
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+  items       ChecklistTemplateItem[]
+
+  @@index([bankId, loanType])
+  @@map("checklist_templates")
+}
+
+model ChecklistTemplateItem {
+  id         String            @id @default(uuid()) @db.Uuid
+  templateId String            @map("template_id") @db.Uuid
+  name       String
+  required   Boolean           @default(true)
+  hint       String?
+  sortOrder  Int               @default(0) @map("sort_order")
+  active     Boolean           @default(true)
+  template   ChecklistTemplate @relation(fields: [templateId], references: [id])
+  caseItems  CaseChecklistItem[]
+
+  @@index([templateId, sortOrder])
+  @@map("checklist_template_items")
+}
+
+/// Progress of one checklist item on one case.
+model CaseChecklistItem {
+  id             String              @id @default(uuid()) @db.Uuid
+  caseId         String              @map("case_id") @db.Uuid
+  templateItemId String              @map("template_item_id") @db.Uuid
+  status         ChecklistItemStatus @default(PENDING)
+  remarks        String?
+  updatedById    String              @map("updated_by") @db.Uuid
+  updatedByName  String              @map("updated_by_name")
+  updatedAt      DateTime            @updatedAt @map("updated_at")
+  loanCase       LoanCase            @relation(fields: [caseId], references: [id])
+  templateItem   ChecklistTemplateItem @relation(fields: [templateItemId], references: [id])
+
+  @@unique([caseId, templateItemId])
+  @@map("case_checklist_items")
 }
 
 // ───────────── Finance ─────────────
