@@ -1,0 +1,1755 @@
+I reviewed the updated Word document carefully. It adds several important requirements that should be included in the architecture, especially Project Master, project-wise case/payout analysis, first-payout KYC/document verification, insurance payout, Team Partner hierarchy, payout percentages, Bankwise Codes, banker sharing, and Admin promotion of Team Partner to DSA.
+I would use a modular full-stack architecture, not a single-page frontend with a database directly connected to it. For your use case, a good production stack is Next.js + TypeScript + NestJS + PostgreSQL + Redis/BullMQ + object storage + Docker. It gives you a strong base for scaling and also leaves the backend reusable if you later make an Android/iOS app.
+Below is the master prompt I recommend giving Claude.
+MASTER PROMPT
+BUILD A PRODUCTION-GRADE LOAN DSA CRM PLATFORM
+I want you to design and develop a complete, production-ready Loan DSA CRM web application based on the attached business requirement document and the detailed specification below.
+The attached document is the primary source for the business requirements. Preserve its terminology, workflow and permissions, but improve the UI/UX, architecture, security, performance, reliability and usability wherever appropriate.
+This must NOT be a simple CRUD application or a visual prototype.
+Build it as a serious Loan DSA / Channel Partner / Banking Operations CRM that can be used in real business operations.
+The system should be designed to handle increasing numbers of:
+DSA Partners
+Team Partners
+Admin Executives
+Loan Cases
+Banks
+Projects
+Banker Contacts
+Payouts
+Recovery records
+Documents
+Queries
+Notifications
+The application should be:
+Fast
+Secure
+Responsive
+Scalable
+Fault tolerant
+Maintainable
+Auditable
+Mobile friendly
+Production ready
+Easy to monitor
+Easy to extend
+Do NOT make unrealistic claims such as "zero errors" or "never crashes". Instead, engineer the application for high reliability through proper architecture, testing, monitoring, transactions, backups, validation and graceful error handling.
+
+PART 1 — FIRST READ THE REQUIREMENTS
+Before writing implementation code, carefully analyze the attached Word document.
+The document defines the following primary roles:
+DSA Partner
+Associate / Team Partner
+Admin Executive
+Admin
+It also defines:
+Dashboard
+Slider
+New Case
+All Cases
+Team Data
+Payout
+Project Master
+Checklist
+Bankwise Code
+Raise Query
+Need Assistance
+Team Partner management
+Case workflow
+Payout
+Insurance
+Recovery
+Banker data
+Notifications
+User management
+Performance analytics
+First payout document verification
+Project-wise analysis
+Do not remove any of these requirements.
+Where you improve the system, clearly document the improvement.
+
+PART 2 — ARCHITECTURE FIRST
+Before implementing the application, create:
+PHASE 0 — ARCHITECTURE BLUEPRINT
+Provide:
+High-level system architecture
+Frontend architecture
+Backend architecture
+Database architecture
+Entity Relationship Diagram
+Role Permission Matrix
+Case State Machine
+Payout State Machine
+Recovery State Machine
+Insurance Workflow
+Team hierarchy
+Authentication architecture
+OTP architecture
+Document architecture
+Notification architecture
+WhatsApp integration architecture
+Email architecture
+Background-job architecture
+Caching strategy
+Security architecture
+API architecture
+Project folder structure
+Deployment architecture
+Backup strategy
+Monitoring strategy
+Testing strategy
+Disaster recovery approach
+Performance strategy
+Risks and mitigations
+Requirements needing clarification
+Do not start writing the complete application until this architecture is established.
+
+PART 3 — RECOMMENDED TECHNOLOGY STACK
+Use mature, production-grade technologies.
+FRONTEND
+Use:
+Next.js
+React
+TypeScript
+Tailwind CSS
+Accessible component library
+React Hook Form
+Zod
+TanStack Query
+Modern chart library
+Use server-side rendering/static optimization where useful.
+The frontend must not contain critical security/business rules.
+
+PART 4 — BACKEND
+Use:
+NestJS
+TypeScript
+REST API
+PostgreSQL
+Prisma or another mature type-safe ORM
+Redis
+BullMQ or equivalent background-job system
+The backend must contain:
+Authentication
+Authorization
+Business rules
+Case workflow
+Payout rules
+Recovery rules
+Financial validation
+Audit logging
+Do not allow users to bypass backend authorization through browser developer tools or manually constructed API requests.
+
+PART 5 — DATABASE
+Use PostgreSQL.
+Create a normalized relational schema.
+Suggested entities:
+USERS
+users
+roles
+permissions
+role_permissions
+user_permissions
+sessions
+otp_verifications
+password_history
+ORGANIZATION
+dsa_partners
+team_partners
+executives
+BANKING
+banks
+bank_codes
+banker_contacts
+banker_designations
+bank_regions
+PROJECT
+projects
+project_types
+project_unit_types
+project_bank_relationships
+CASE
+customers
+loan_cases
+case_stage_history
+case_remarks
+case_assignments
+case_documents
+case_checklists
+FINANCE
+payouts
+payout_history
+payout_percentage_history
+insurance
+insurance_payouts
+recovery
+recovery_history
+COMMUNICATION
+queries
+query_messages
+support_requests
+support_messages
+notifications
+notification_recipients
+CONTENT
+sliders
+slider_campaigns
+SYSTEM
+audit_logs
+system_settings
+background_jobs
+Finalize the actual schema during Phase 0.
+
+PART 6 — USER HIERARCHY
+Use:
+ADMIN│├── ADMIN EXECUTIVE│├── DSA PARTNER│ ├── TEAM PARTNER│ ├── TEAM PARTNER│ └── TEAM PARTNER│└── other authorized users
+A DSA can manage Team Partners.
+A Team Partner cannot create another Team Partner.
+Admin can promote Team Partner → DSA Partner.
+Promotion must preserve:
+Historical cases
+Payout history
+Recovery history
+Queries
+Documents
+Audit history
+
+PART 7 — ROLE: DSA PARTNER
+DSA can:
+Authentication
+Login
+Logout
+Forgot password
+Reset password
+OTP verification
+Change password
+Team
+Add Team Partner
+Enter Team Partner Name
+Enter Team Partner Mobile
+Create Team Partner account
+Reset Team Partner password
+View Team Partner
+View Team Partner cases
+View Team Partner payout
+View Team Partner performance
+Case
+Add own case
+View own cases
+View Team Partner cases
+Update permitted case statuses
+Raise query
+Request assistance
+Analytics
+DSA can analyze:
+Day-wise
+Week-wise
+Month-wise
+Custom date
+Team Partner-wise
+Project-wise
+Bank-wise
+Loan-type-wise
+
+PART 8 — TEAM PARTNER
+Team Partner can:
+Login
+Logout
+Reset password through OTP
+Create cases
+View own cases
+Update permitted case stages
+View own payout
+Raise queries
+Request assistance
+View notifications
+View permitted project information
+View permitted banker information
+Team Partner CANNOT:
+Create Team Partners
+Create DSA IDs
+Create their own account
+Change their payout percentage
+Change payout amount
+Change payout status
+Change recovery
+Access another Team Partner's cases
+All restrictions must be enforced on the backend.
+
+PART 9 — AUTHENTICATION
+Implement secure authentication.
+DSA/Team Partner:
+Mobile/username + password
+Forgot password
+OTP
+Reset password
+Team Partner first login:
+Receive login/mobile verification
+OTP verification
+Verify mobile
+Create password
+Activate account
+OTP:
+Expiration
+Retry limit
+Resend cooldown
+Rate limit
+One-time use
+Secure storage
+Audit logging
+Do not store plaintext passwords.
+Use Argon2id or another strong password hashing method.
+
+PART 10 — ADMIN EXECUTIVE
+Admin Executive can perform permitted operational functions.
+Admin Executive can:
+Create login ID according to Admin permissions
+Reset password
+Block/unblock users
+Manage cases
+Change Disbursed Amount
+Change Handover Amount
+Add insurance
+Update insurance payout
+Add recovery amount
+Add bank remarks
+Change payout status
+Answer queries
+Handle assistance requests
+Send individual notifications
+View Bankwise Codes
+Add/edit banker information
+Share banker information through WhatsApp
+Mark payout received from Bank/NBFC
+Executive permissions must be configurable by Admin.
+
+PART 11 — ADMIN
+Admin has the highest privilege.
+Admin can:
+Create DSA
+Create Team Partner
+Create Executive
+Reset passwords
+Block/unblock users
+Suspend/activate users
+Manage permissions
+Manage cases
+Manage payouts
+Manage recovery
+Manage insurance
+Manage projects
+Manage bank codes
+Manage bankers
+Manage sliders
+Manage notifications
+Manage payout percentages
+View all reports
+View audit logs
+Promote Team Partner to DSA
+Admin is the final authority for permission management.
+
+PART 12 — DASHBOARD DESIGN
+Create a premium fintech-style dashboard.
+Header:
+Logo
+Global Search
+Notification Bell
+Profile
+Role
+Logout
+Main area:
+HERO SLIDER
+Admin controlled:
+Image
+Video
+Bank offer
+Product offer
+Campaign
+Announcement
+Support:
+Multiple sliders
+Start date
+End date
+Active/inactive
+Display order
+Auto play
+Manual controls
+CTA button
+The slider should occupy approximately 50% of the visual screen area on desktop but adapt intelligently to mobile.
+Do not allow the slider to consume the entire mobile screen.
+
+PART 13 — DASHBOARD QUICK ACTIONS
+DSA/Team Partner interface:
+ADD NEW CASE
+ALL CASES
+TEAM DATA
+PAYOUT
+PROJECT MASTER
+CHECKLIST
+BANKWISE CODE
+RAISE QUERY
+NEED ASSISTANCE
+Use attractive cards with clear icons.
+For Team Partner, hide unauthorized modules.
+
+PART 14 — KPI CARDS
+Dashboard should show relevant metrics.
+DSA:
+Total Cases
+Login
+Sanction
+Disbursed
+Handover
+Query
+Reject
+Withdraw
+Pending Payout
+Confirmed
+Paid
+Hold
+Recovery
+Team Partner:
+Show only own metrics.
+Admin:
+Show organization-wide metrics.
+
+PART 15 — NEW CASE
+Create a clean multi-step form.
+STEP 1 — CUSTOMER
+Customer Name
+Mobile Number — Optional
+Additional fields can be added where justified.
+STEP 2 — LOAN
+Loan Type:
+Home Loan
+Mortgage Loan
+Business Loan
+Used Car Loan
+Other
+STEP 3 — FINANCIAL
+Applied Loan Amount
+STEP 4 — BANK
+Bank Name
+STEP 5 — PROJECT
+Project Name — Optional
+Project should be selected from Project Master.
+Do not allow random duplicate project names.
+STEP 6 — SALES MANAGER
+Sales Manager Name — Optional
+Additional banker fields may be selected from the Banker Directory.
+
+PART 16 — CASE CREATION
+After submission:
+Status automatically becomes:
+LOGIN
+Automatically move case to:
+ALL CASES
+Generate unique Case ID.
+Example:
+LDSA-2026-000001
+Case ID must be database-unique.
+Record:
+Created By
+Created Role
+DSA
+Team Partner
+Created Date
+Created Time
+
+PART 17 — ALL CASES
+The list must be simple.
+Default compact row should show:
+Customer Name
+Loan Type
+Loan Account Number where available
+Status
+Additional columns can be available through responsive desktop view.
+Clicking Customer Name opens complete Case Details.
+On mobile use cards.
+
+PART 18 — CASE STATUS
+Required statuses:
+Login
+Sanction
+Disbursed
+Handover
+Query
+Reject
+Withdraw
+Use a controlled state machine.
+Do not allow arbitrary status jumps unless explicitly configured.
+
+PART 19 — SANCTION
+When status changes:
+LOGIN → SANCTION
+Open a modal requiring:
+Sanction Loan Amount
+Store:
+Sanction Amount
+Sanction Date
+Updated By
+Timestamp
+Do not lose sanction information later.
+
+PART 20 — DISBURSED
+When status changes:
+SANCTION → DISBURSED
+Require:
+Disbursed Amount
+Disbursed Type
+Options:
+Part Payment
+Part to Full
+Full
+Store:
+Disbursed Date
+Amount
+Type
+Updated By
+Admin/Executive can correct amount according to permissions.
+Every financial correction must be audited.
+
+PART 21 — HANDOVER
+When status changes:
+DISBURSED → HANDOVER
+Require:
+Handover Amount
+OTC/PDD Cleared — Yes/No
+Loan Account Number
+Sales Manager Name
+Sales Manager Email
+Store:
+Handover Date
+Updated By
+After successful Handover:
+Automatically create:
+PAYOUT = PENDING
+This must happen inside a backend database transaction.
+
+PART 22 — QUERY
+When status is:
+QUERY
+Require:
+Query Remark
+Store every query interaction separately.
+Do not overwrite old remarks.
+
+PART 23 — REJECT
+Require:
+Reject Reason
+Remarks
+Store history.
+
+PART 24 — WITHDRAW
+Require:
+Withdrawal Reason
+Remarks
+Store history.
+
+PART 25 — CASE TIMELINE
+Every case should have a professional visual timeline:
+LOGIN↓SANCTION↓DISBURSED↓HANDOVER↓PAYOUT
+Alternative paths:
+QUERYREJECTWITHDRAW
+Timeline displays:
+Status
+Date
+Time
+User
+Role
+Remarks
+Historical stage records cannot be silently deleted.
+
+PART 26 — CASE DETAIL PAGE
+Create tabs:
+Overview
+Customer
+Loan
+Bank
+Project
+Timeline
+Documents
+Checklist
+Payout
+Insurance
+Recovery
+Queries
+Assistance
+Audit
+This prevents a huge, cluttered page.
+
+PART 27 — PROJECT MASTER
+Create Project Master based on the attached requirements.
+Fields:
+Project Name
+City
+Locality
+State
+RERA Number
+Project Type
+Unit Type
+Market Price Range
+Measurement Unit
+Project Type:
+Residential
+Commercial
+Industrial
+Unit Type:
+Flat
+Plot
+Bungalow
+Office
+Shop
+Shed
+House
+Market price:
+Minimum
+Maximum
+Measurement basis
+Examples:
+Sq. Ft.
+Sq. Yard
+SBA
+Carpet
+All users can VIEW Project Master.
+Only Admin/authorized Executive can:
+Add
+Edit
+Delete
+Activate/deactivate
+
+PART 28 — PROJECT ANALYTICS
+DSA/Team Partner should be able to filter their cases by:
+Project
+Bank
+Loan Type
+Status
+Date
+Admin should be able to analyze:
+Highest login project
+Lowest login project
+Project-wise case count
+Project-wise loan amount
+Project-wise disbursed amount
+Project-wise handover amount
+Project-wise payout
+Admin should be able to sort:
+Highest
+Lowest
+Do not infer business performance without displaying the underlying metrics.
+
+PART 29 — TEAM DATA
+DSA should see:
+Team Partner Name
+Cases
+Login
+Sanction
+Disbursed
+Handover
+Payout
+Recovery
+Performance
+Filters:
+Week
+Month
+Custom date
+Project
+Bank
+Loan Type
+Status
+
+PART 30 — PAYOUT
+When Handover occurs:
+Payout automatically becomes:
+PENDING
+Payout statuses:
+Pending
+Confirmed
+Paid
+Hold
+Payout Received From Bank
+Only Admin/authorized Executive can change payout status.
+DSA/Team Partner can only view.
+
+PART 31 — PAYOUT AMOUNT
+Maintain:
+Handover Amount
+Payout Percentage
+Payout Amount
+Payout Status
+Payout Date
+Remarks
+Do not calculate historical payouts dynamically using the latest payout percentage.
+Store the applicable percentage used at the time of calculation.
+
+PART 32 — PAYOUT PERCENTAGE
+Admin can:
+Set DSA payout percentage
+Set Team Partner payout percentage
+Change percentages
+DSA can fix Team Partner payout percentage according to the requirement.
+However, all percentage changes must be:
+Permission controlled
+Audited
+Date/time recorded
+Historical
+Provide an effective-from date if appropriate.
+
+PART 33 — PAYOUT HISTORY
+Store:
+Previous amount
+New amount
+Previous status
+New status
+Previous percentage
+New percentage
+Changed By
+Reason
+Timestamp
+Financial history must never be destroyed.
+
+PART 34 — INSURANCE
+Admin/Executive can add against each case:
+Insurance Amount
+Insurance Manager Name
+Insurance Manager Mobile
+Insurance Manager Email
+Insurance Company Name
+Insurance Payout
+Insurance Payout Status
+Keep insurance payout separate from loan payout.
+Provide:
+Insurance payout history
+Insurance status
+Insurance remarks
+
+PART 35 — RECOVERY
+Admin/Executive can record:
+Recovery Amount
+Bank Remarks
+Recovery Reason
+Recovery Date
+When the bank/NBFC has recovered the payout, record that event.
+Suggested status:
+Recovery Pending
+Bank Recovery Received
+Demand Raised
+Partially Recovered
+Fully Recovered
+Disputed
+Waived
+Closed
+
+PART 36 — RECOVERY DEMAND
+Admin/Executive can demand recovery from DSA/Team Partner.
+Show:
+Case ID
+Customer
+Bank
+Original Payout
+Recovery Amount
+Amount Demanded
+Amount Received
+Outstanding
+Status
+Due Date
+Remarks
+DSA/Team Partner cannot edit financial recovery values.
+
+PART 37 — WHATSAPP RECOVERY
+Admin can send WhatsApp directly.
+Executive can send where permission is provided.
+Message should support placeholders:
+{{dsa_name}}{{team_partner_name}}{{case_id}}{{customer_name}}{{recovery_amount}}{{due_date}}
+Do not expose unnecessary customer information.
+
+PART 38 — FIRST PAYOUT DOCUMENT VERIFICATION
+This is a critical requirement.
+Before processing the first payout of a DSA/Team Partner, Admin Executive must collect/upload required documents:
+PAN Card
+Aadhaar Card
+Bank Cancelled Cheque
+GST Certificate where applicable
+Photograph
+Create a:
+FIRST PAYOUT KYC
+workflow.
+States:
+Documents Pending
+Uploaded
+Under Admin Verification
+Approved
+Rejected
+Resubmission Required
+Payout should be blocked until required documents are approved, according to business rules.
+Admin must be the final verifier.
+Maintain:
+Uploaded by
+Verified by
+Verification date
+Rejection reason
+Document version
+
+PART 39 — DOCUMENT SECURITY
+Documents must:
+Not be publicly accessible
+Have authorization checks
+Have file type validation
+Have size limits
+Have secure storage
+Have upload history
+Have access logs where appropriate
+Do not store sensitive documents directly in the public web directory.
+
+PART 40 — CHECKLIST
+Create a configurable checklist.
+Admin can define checklists by:
+Bank
+Loan Type
+Project
+Product
+Checklist items:
+Document Name
+Required/Optional
+Applicable Bank
+Applicable Loan Type
+Active/Inactive
+Users can see completion progress.
+
+PART 41 — BANKWISE CODE
+Create Bankwise Code module.
+Fields can include:
+Bank
+Product
+Code
+City
+Region
+Branch
+Effective Date
+Expiry Date
+Status
+Remarks
+Admin/Executive can manage it.
+Users can search/view authorized codes.
+
+PART 42 — BANKER DIRECTORY
+Create centralized banker management.
+Fields:
+Bank
+Name
+Designation
+Mobile
+Email
+Branch
+City
+Region
+Product
+Active/Inactive
+Support multiple bankers per bank.
+
+PART 43 — BANKER HIERARCHY
+Support where applicable:
+Sales Manager
+Relationship Head
+Zonal Head
+Regional Head
+National Head
+Do not hard-code a maximum hierarchy.
+Make designations configurable.
+
+PART 44 — BANKER SHARING
+Admin/Executive can select:
+One banker
+Multiple bankers
+Multiple designations
+Then:
+SHARE VIA WHATSAPP
+or:
+SHARE VIA EMAIL
+Generate a professional contact card/message.
+
+PART 45 — RAISE QUERY
+Create Query module.
+Categories:
+Case
+Payout
+Recovery
+Bank
+Project
+Technical
+General
+Fields:
+Query ID
+Case
+Subject
+Description
+Priority
+Attachment
+Created By
+Assigned To
+Status
+Statuses:
+Open
+Assigned
+In Progress
+Waiting
+Resolved
+Closed
+
+PART 46 — NEED ASSISTANCE
+Create a separate:
+NEED ASSISTANCE FOR CASE
+module.
+User selects:
+Case
+Problem Type
+Priority
+Description
+Attachment
+Admin/Executive can:
+Assign
+Reply
+Add internal note
+Resolve
+Close
+Keep complete history.
+
+PART 47 — NOTIFICATIONS
+Admin can send:
+Everyone
+All DSA
+All Team Partners
+All Executives
+Individual user
+Notification fields:
+Title
+Description
+Priority
+Attachment
+Start date
+Expiry date
+Users get notification bell with:
+Unread count
+Read/unread
+Timestamp
+
+PART 48 — ADMIN DASHBOARD
+Admin dashboard must include:
+CASES
+Total
+Login
+Sanction
+Disbursed
+Handover
+Query
+Reject
+Withdraw
+FINANCE
+Total Handover
+Pending Payout
+Confirmed Payout
+Paid Payout
+Hold Payout
+Recovery
+Insurance Payout
+USERS
+DSA
+Team Partner
+Executives
+Active
+Blocked
+Suspended
+PROJECTS
+Highest Login Projects
+Lowest Login Projects
+Project-wise Payout
+
+PART 49 — ADMIN FILTERING
+Admin can filter:
+Day
+Week
+Month
+Custom Date
+DSA
+Team Partner
+Executive
+Bank
+Project
+Loan Type
+Status
+Reports should be server-side.
+
+PART 50 — REPORTING
+Create:
+Case Report
+DSA Performance
+Team Partner Performance
+Project Report
+Bank Report
+Payout Report
+Recovery Report
+Insurance Report
+Query Report
+Executive Activity Report
+Exports:
+CSV
+Excel
+PDF where appropriate
+Permissions must apply to exports.
+
+PART 51 — GLOBAL SEARCH
+Admin/authorized Executive:
+Search:
+Case ID
+Customer
+Mobile
+Loan Account
+DSA
+Team Partner
+Bank
+Project
+Query ID
+Search must respect authorization.
+
+PART 52 — DUPLICATE CASE PROTECTION
+Before case creation check:
+Customer mobile
+PAN where available
+Customer name + mobile
+Existing loan account
+Other configurable identifiers
+If similar case exists:
+Show warning.
+Do not silently create duplicate records.
+
+PART 53 — AUDIT LOG
+Maintain immutable audit logs.
+Track:
+Login
+Logout
+Password changes
+User creation
+User blocking
+User activation
+Case creation
+Case modification
+Status changes
+Disbursed amount changes
+Handover amount changes
+Payout changes
+Recovery changes
+Insurance changes
+Payout percentage changes
+Banker changes
+Project changes
+Slider changes
+Notification sending
+Record:
+User
+Role
+Action
+Entity
+Entity ID
+Previous data
+New data
+Timestamp
+IP where appropriate
+Never log:
+Passwords
+OTP
+API secrets
+
+PART 54 — ROLE BASED ACCESS CONTROL
+Create permission-level authorization.
+Example:
+CASE_CREATECASE_VIEW_OWNCASE_VIEW_TEAMCASE_VIEW_ALLCASE_UPDATECASE_STATUS_CHANGE
+PAYOUT_VIEWPAYOUT_UPDATEPAYOUT_PERCENTAGE_UPDATE
+RECOVERY_VIEWRECOVERY_UPDATE
+INSURANCE_VIEWINSURANCE_UPDATE
+BANKER_VIEWBANKER_CREATEBANKER_UPDATEBANKER_DELETE
+PROJECT_VIEWPROJECT_CREATEPROJECT_UPDATEPROJECT_DELETE
+USER_CREATEUSER_UPDATEUSER_BLOCKUSER_DELETE
+NOTIFICATION_SEND
+AUDIT_VIEW
+Permissions must be checked server-side.
+
+PART 55 — IMPORTANT SECURITY RULE
+Never trust frontend role information.
+For every API request:
+Authenticate user
+Determine role from server-side session
+Check permission
+Check resource ownership
+Check business rule
+Execute operation
+A DSA attempting:
+PATCH /payout/123
+must be rejected even if they manually construct the HTTP request.
+
+PART 56 — FINANCIAL TRANSACTIONS
+Use PostgreSQL transactions for:
+Handover → Payout Pending
+Payout update
+Recovery update
+Insurance payout
+Financial corrections
+Example Handover transaction:
+Validate case
+Validate user permission
+Update handover information
+Add stage history
+Create payout record
+Set payout Pending
+Add audit log
+Commit
+If anything fails:
+ROLLBACK.
+
+PART 57 — CONCURRENCY
+Protect against two executives editing the same case simultaneously.
+Use:
+Database transactions
+Optimistic locking/version number
+Appropriate row-level controls
+Prevent lost updates.
+
+PART 58 — IDEMPOTENCY
+Important financial actions must be idempotent.
+If the same payout request is submitted twice:
+Do not create duplicate payout transactions.
+Use idempotency keys where appropriate.
+
+PART 59 — REDIS AND BACKGROUND JOBS
+Use Redis/BullMQ for:
+Notifications
+Email
+SMS
+WhatsApp jobs where applicable
+Scheduled slider activation
+Slider expiry
+Large report generation
+Large exports
+Background processing
+A failed email should never crash the main application.
+Implement retry and failure handling.
+
+PART 60 — PERFORMANCE
+Use:
+PostgreSQL indexes
+Query optimization
+Pagination
+Redis caching
+Lazy loading
+Image optimization
+Video optimization
+CDN
+Background jobs
+API response optimization
+Never load all cases into the browser.
+
+PART 61 — UI PERFORMANCE
+Use:
+Skeleton loading
+Optimistic UI only where safe
+Lazy-loaded charts
+Lazy-loaded videos
+Debounced search
+Pagination
+Server-side filtering
+Avoid unnecessary animations.
+
+PART 62 — ERROR HANDLING
+Implement:
+Backend global exception filter
+Frontend error boundary
+Structured logging
+User-friendly errors
+Retry where safe
+Never display:
+Stack trace
+SQL error
+Server paths
+Secrets
+
+PART 63 — RESILIENCE
+Build the application to tolerate failures.
+Implement:
+Database connection pooling
+Graceful shutdown
+Retry mechanisms
+Background job retries
+Dead-letter queue
+Health checks
+Monitoring
+Error alerts
+Transaction rollback
+Database backup
+One failed module should not bring down the entire application.
+
+PART 64 — HEALTH CHECKS
+Create:
+/health
+and appropriate readiness checks for:
+Application
+Database
+Redis
+Storage
+Do not expose sensitive infrastructure details publicly.
+
+PART 65 — RATE LIMITING
+Protect:
+Login
+OTP
+Password reset
+Search
+Case creation
+File uploads
+Notifications
+WhatsApp actions
+Report generation
+
+PART 66 — FILE UPLOAD
+Secure uploads:
+Allowed extensions
+MIME validation
+File size limit
+Filename sanitization
+Malware scanning where available
+Private storage
+Access authorization
+
+PART 67 — UI DESIGN
+Create a premium fintech UI.
+Style:
+Modern
+Professional
+Clean
+Premium
+High-definition
+Attractive
+Fast
+Minimal clutter
+Use:
+Consistent typography
+KPI cards
+Status chips
+Timelines
+Charts
+Smart tables
+Mobile cards
+Clear icons
+Good spacing
+Avoid:
+Excessive gradients
+Huge animations
+Crowded dashboards
+Tiny text
+Poor contrast
+
+PART 68 — MOBILE FIRST
+DSA/Team Partner users may primarily use mobile.
+Mobile must support:
+Dashboard
+New Case
+Case Details
+Status update
+Payout
+Recovery view
+Queries
+Assistance
+Notifications
+Project Master
+Banker information
+Use touch-friendly controls.
+
+PART 69 — CASE TABLE
+Desktop:
+Use compact professional table.
+Mobile:
+Convert rows into cards.
+Default visible fields:
+CustomerLoan TypeLoan AccountStatus
+Click customer to open complete details.
+
+PART 70 — RESPONSIVE NAVIGATION
+Desktop:
+Sidebar navigation.
+Mobile:
+Bottom navigation or compact drawer.
+Keep:
+DashboardCasesPayoutQueriesProfile
+easily accessible.
+
+PART 71 — DESIGN SYSTEM
+Build reusable components:
+Button
+Input
+Select
+Modal
+Drawer
+Table
+Card
+Badge
+Tabs
+Timeline
+File uploader
+Search
+Filters
+Pagination
+Toast
+Confirmation dialog
+KPI
+Chart
+Empty state
+Error state
+Loading skeleton
+
+PART 72 — CONFIGURABLE MASTER DATA
+Admin should eventually be able to configure:
+Loan types
+Case statuses
+Payout statuses
+Recovery statuses
+Banks
+Projects
+Project types
+Unit types
+Bank codes
+Query categories
+Checklist items
+Notification categories
+Avoid hard-coded business values wherever future changes are likely.
+
+PART 73 — DATA OWNERSHIP
+Every case should contain:
+Created by
+Created role
+DSA
+Team Partner
+Assigned Executive
+Created timestamp
+Updated timestamp
+Authorization must derive ownership from authenticated server-side identity.
+
+PART 74 — SOFT DELETE
+Use soft delete for important records.
+Do not permanently destroy:
+Users
+Cases
+Financial records
+Audit records
+Important documents
+Historical records must remain traceable.
+
+PART 75 — FIRST PAYOUT CONTROL
+Before releasing first payout:
+Check:
+PANAadhaarCancelled ChequeGST if applicablePhoto
+Status must be:
+ADMIN VERIFIED
+before first payout is released.
+Provide a clear warning on payout screen if KYC is incomplete.
+
+PART 76 — ADMIN CONFIRMATIONS
+Require confirmation for:
+Delete
+Suspend
+Block
+Payout change
+Recovery change
+Payout percentage change
+User promotion
+Banker deletion
+For financial modifications require a reason.
+
+PART 77 — NOTIFICATION CENTER
+Show:
+Notification icon
+Unread count
+Notifications
+Read/unread
+Date/time
+Related case
+Mark read
+Mark all read
+
+PART 78 — ADMIN SLIDER
+Admin can:
+Add image
+Add video
+Edit
+Delete
+Activate
+Deactivate
+Reorder
+Schedule
+Expire
+Add bank
+Add campaign
+Add CTA
+
+PART 79 — PROFILE
+User profile:
+Name
+Mobile
+Email
+Role
+Status
+DSA relationship
+Team Partner relationship where applicable
+Actions:
+Change Password
+Logout
+
+PART 80 — DATABASE INDEXING
+Index:
+Case ID
+Customer mobile
+Customer name
+Loan account
+DSA ID
+Team Partner ID
+Bank ID
+Project ID
+Status
+Created date
+Payout status
+Recovery status
+Use indexes based on actual query patterns.
+
+PART 81 — CACHING
+Cache carefully:
+Bank list
+Project list
+Loan types
+Bank codes
+Banker directory where appropriate
+System configuration
+Never cache sensitive user-specific financial data incorrectly.
+Invalidate caches when master data changes.
+
+PART 82 — BACKUPS
+Create documented:
+Daily backup
+Backup retention
+Restore process
+Disaster recovery
+Database migration backup
+Production database must have automated backups.
+
+PART 83 — MONITORING
+Implement production monitoring for:
+API errors
+Database errors
+Slow requests
+Failed jobs
+Authentication failures
+Storage failures
+High resource usage
+Create alerting for critical failures.
+
+PART 84 — LOGGING
+Use structured logs.
+Log:
+Request ID
+User ID
+Action
+Endpoint
+Duration
+Error code
+Do not log:
+Passwords
+OTP
+Secrets
+Full sensitive customer data unnecessarily
+
+PART 85 — API ARCHITECTURE
+Create clean API modules:
+/api/v1/auth/api/v1/users/api/v1/dsa/api/v1/team-partners/api/v1/executives/api/v1/cases/api/v1/projects/api/v1/checklists/api/v1/banks/api/v1/bankers/api/v1/bank-codes/api/v1/payouts/api/v1/insurance/api/v1/recovery/api/v1/queries/api/v1/support/api/v1/notifications/api/v1/sliders/api/v1/reports/api/v1/audit
+Use consistent API responses.
+
+PART 86 — API RESPONSE
+Success:
+{"success": true,"data": {},"message": "Operation completed successfully"}
+Error:
+{"success": false,"message": "You are not authorized to perform this action","code": "FORBIDDEN"}
+Never expose internal errors.
+
+PART 87 — API VERSIONING
+Use:
+/api/v1/
+Keep backend independent of frontend so a future mobile application can use the same API.
+
+PART 88 — TESTING
+Create:
+UNIT TESTS
+INTEGRATION TESTS
+API TESTS
+E2E TESTS
+RBAC TESTS
+SECURITY TESTS
+PERFORMANCE TESTS
+RESPONSIVE TESTS
+
+PART 89 — CRITICAL TESTS
+Test:
+DSA can create Team Partner.
+Team Partner verifies OTP.
+Team Partner creates password.
+Team Partner cannot create another Team Partner.
+Team Partner can create case.
+New case becomes Login.
+Sanction modal works.
+Disbursement modal works.
+Handover modal works.
+Handover automatically creates Pending payout.
+DSA cannot change payout.
+Team Partner cannot change payout.
+Executive can change payout.
+Admin can change payout.
+Recovery works.
+Insurance works.
+First payout KYC blocks unauthorized payout.
+Project Master works.
+Project filtering works.
+Banker sharing works.
+WhatsApp works.
+Query works.
+Assistance works.
+Notification works.
+Admin promotion works.
+Audit logs work.
+Unauthorized API requests fail.
+Duplicate cases are detected.
+Private documents cannot be accessed by unauthorized users.
+Suspended accounts cannot perform operations.
+
+PART 90 — CI/CD
+Before every deployment:
+Install dependencies
+Type check
+Lint
+Unit tests
+Integration tests
+Build
+Migration check
+Security checks
+E2E tests where configured
+Failed critical checks must stop deployment.
+
+PART 91 — ENVIRONMENT
+Use:
+DevelopmentStagingProduction
+Never test experimental changes directly on production.
+Create:
+.env.example
+Never commit secrets.
+
+PART 92 — DOCKER
+Make the project Docker-ready.
+Provide:
+Frontend container
+Backend container
+Worker container
+Database development container where useful
+Redis development container where useful
+Production database should use a reliable managed service where practical.
+
+PART 93 — DEPLOYMENT
+Provide documentation for:
+Build
+Environment variables
+Database migration
+Redis
+Storage
+Domain
+HTTPS
+Reverse proxy
+Backups
+Monitoring
+Rollback
+
+PART 94 — FUTURE MOBILE APPLICATION
+The backend must remain independent.
+Future Android/iOS application should be able to consume the same APIs.
+Do not put business rules inside React components.
+
+PART 95 — FUTURE INTEGRATIONS
+Create abstraction layers for:
+SMS
+WhatsApp Business API
+Email
+Bank APIs
+Credit bureau
+KYC
+OCR
+Payment services
+Do not tightly couple the application to one vendor.
+
+PART 96 — UX IMPROVEMENTS YOU SHOULD IMPLEMENT
+Use your best product-design judgment to improve the original requirements.
+Recommended additions:
+Global Search
+Search cases, customers, projects, banks and users.
+Smart Filters
+Save frequently used filters.
+Recent Cases
+Show recently accessed cases.
+Quick Actions
+Allow users to reach common operations quickly.
+Case Timeline
+Make the complete journey visually understandable.
+Payout Alerts
+Highlight pending/hold/recovery items.
+KYC Warning
+Clearly display:
+"First payout KYC verification pending."
+Duplicate Warning
+Show possible duplicate cases before submission.
+Unsaved Changes Warning
+Prevent accidental loss of form data.
+Draft Case
+Optionally allow incomplete case forms to be saved as drafts before final Login submission.
+Activity History
+Show who changed what and when.
+Mobile Quick Actions
+Use floating/quick action button for Add New Case.
+Do not add features that complicate the workflow unnecessarily.
+
+PART 97 — BUSINESS INTELLIGENCE
+Create analytics that help Admin understand:
+Which DSA generates the most cases
+Which Team Partner generates the most cases
+Which projects generate the most cases
+Which banks receive most cases
+Loan-type distribution
+Sanction conversion
+Disbursement conversion
+Handover conversion
+Payout status
+Recovery
+Hold payouts
+Present the underlying numbers and filters clearly.
+
+PART 98 — PROJECT-WISE RANKING
+Admin can sort projects:
+Highest number of logins
+Lowest number of logins
+Highest loan amount
+Highest disbursed amount
+Highest handover
+Highest payout
+Do not use arbitrary "best project" labels.
+Display objective metrics.
+
+PART 99 — FINANCIAL DASHBOARD
+Admin should see:
+Total HandoverTotal PayoutPendingConfirmedPaidHoldRecoveryInsurance Payout
+Allow:
+Date filter
+Bank filter
+DSA filter
+Team Partner filter
+Project filter
+
+PART 100 — FINAL PRODUCT QUALITY
+The application should look and behave like a professional:
+FINTECH + CRM + LOAN OPERATIONS PLATFORM
+It should not look like:
+Student project
+Basic CRUD application
+Generic dashboard template
+Priorities:
+Security
+Data integrity
+Financial accuracy
+Authorization
+Reliability
+Performance
+Scalability
+Maintainability
+UX
+Visual design
+
+PART 101 — DEVELOPMENT ORDER
+Build in this order:
+PHASE 0Architecture
+PHASE 1Project setup + Design System
+PHASE 2Authentication + OTP
+PHASE 3RBAC + User Management
+PHASE 4DSA + Team Partner hierarchy
+PHASE 5Case Management
+PHASE 6Case Workflow + Timeline
+PHASE 7Project Master
+PHASE 8Checklist
+PHASE 9Payout
+PHASE 10Insurance
+PHASE 11Recovery
+PHASE 12Bankers + Bankwise Codes
+PHASE 13Queries + Need Assistance
+PHASE 14Notifications
+PHASE 15Slider/Campaign Management
+PHASE 16Reports + Analytics
+PHASE 17Audit Logs
+PHASE 18Security Hardening
+PHASE 19Performance Optimization
+PHASE 20Automated Testing
+PHASE 21Staging Deployment
+PHASE 22Production Readiness
+
+PART 102 — PHASE COMPLETION RULE
+After each phase:
+Run tests
+Run type checking
+Run linting
+Check migrations
+Check API authorization
+Check UI
+Check mobile responsiveness
+Check error states
+Check performance
+Run regression tests
+Then provide:
+PHASE REPORT
+Completed:Working:Tests:Issues Found:Issues Fixed:Remaining:Next Phase:
+Do not continue while critical security or data-integrity issues remain.
+
+PART 103 — FINAL END-TO-END TEST
+Perform this complete scenario:
+ADMIN↓Creates DSA↓DSA Login↓DSA Creates Team Partner↓Team Partner Receives OTP↓Team Partner Verifies Mobile↓Team Partner Creates Password↓Team Partner Login↓Creates New Case↓Case = LOGIN↓SANCTION↓Enter Sanction Amount↓DISBURSED↓Enter Disbursed Amount + Type↓HANDOVER↓Enter Handover Amount + OTC/PDD + Loan Account↓PAYOUT automatically = PENDING↓Admin/Executive verifies first payout KYC↓Admin/Executive updates payout↓DSA/Team Partner sees payout↓DSA/Team Partner cannot edit payout↓Bank recovery occurs↓Admin records recovery↓Recovery demand created↓WhatsApp recovery message↓Query raised↓Executive responds↓Notification received↓Admin sees complete audit history
+Every step must be tested.
+
+PART 104 — FINAL INSTRUCTION
+Do NOT immediately produce the entire application.
+First produce:
+PHASE 0 — ARCHITECTURE BLUEPRINT
+with:
+Technology recommendation
+Architecture diagram
+Database ERD
+Complete role/permission matrix
+Case state machine
+Payout state machine
+Recovery workflow
+Insurance workflow
+Team hierarchy
+Authentication architecture
+API architecture
+Folder structure
+Security architecture
+Deployment architecture
+Monitoring architecture
+Backup architecture
+Testing architecture
+Performance architecture
+Risks
+Improvements
+Any ambiguous requirements
+Then wait for approval before Phase 1.
+When implementing later phases, do not destroy or rewrite working functionality unnecessarily.
+Always preserve backward compatibility with previously completed modules.
+The goal is a secure, scalable, fast and professional Loan DSA CRM that can grow into a full loan distribution/channel-partner platform.
+Three additions I especially recommend
+1. First-payout KYC should be a proper workflow, not just file uploads.Your document says the Admin Executive has to collect PAN, Aadhaar, cancelled cheque, GST certificate where applicable and photograph, upload them and get Admin verification before the first payout. I therefore made this a dedicated First Payout KYC module with Pending → Uploaded → Under Verification → Approved/Rejected states.
+2. Project Master should become a proper master-data system.Your document contains Project Name, City, Locality, State, RERA Number, project type, unit type and market-price range, and allows users to view it while restricting editing to Admin/Executive. I also added project-wise analytics because your document specifically asks Admin to compare highest/lowest project logins.
+3. Treat payout, recovery and insurance as separate financial modules.Your requirements give Admin/Executive control over disbursed/handover amounts, insurance, recovery and payout status. Keeping these as separate ledgers with audit history will make the application much safer than putting everything into a single cases table.
+Most important instruction when you paste this into Claude: let Claude complete Phase 0 first. Review the ER diagram and especially the role-permission matrix + case/payout/recovery state machines before allowing it to generate the application. Those four pieces will determine whether your CRM remains manageable when you eventually have thousands of cases.

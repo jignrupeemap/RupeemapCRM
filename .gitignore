@@ -7,3 +7,6 @@ coverage
 *.log
 .turbo
 storage/
+dump.rdb
+.pnpm-store/
+.cache/

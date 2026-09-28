@@ -1,0 +1,254 @@
+'use client';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { Plus, Search, SlidersHorizontal, X } from 'lucide-react';
+import Link from 'next/link';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { Suspense, useEffect, useState } from 'react';
+import { CASE_STATUSES, CASE_STATUS_LABELS, type CaseStatus } from '@rupeemap/shared';
+import { api } from '@/lib/api';
+import { fmtDate, formatINR, loanTypeName } from '@/lib/format';
+import { useCan, useMe } from '@/lib/session';
+import { PageHeader } from '@/components/shell';
+import { Button, Card, cx, EmptyState, ErrorState, Input, Pagination, Select, Skeleton, StatusChip } from '@/components/ui';
+
+interface CaseRow {
+  id: string;
+  caseNo: string;
+  loanType: string;
+  loanAccountNo: string | null;
+  status: CaseStatus;
+  appliedAmount: string;
+  handoverAmount: string | null;
+  createdAt: string;
+  daysInStage: number;
+  customer: { name: string; mobile: string | null };
+  bank: { id: string; name: string };
+  project: { id: string; name: string } | null;
+  dsa: { id: string; name: string } | null;
+  teamPartner: { id: string; name: string } | null;
+}
+
+export default function CasesPage() {
+  return (
+    <Suspense>
+      <Cases />
+    </Suspense>
+  );
+}
+
+function Cases() {
+  const params = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+  const can = useCan();
+  const { data: me } = useMe();
+  const [q, setQ] = useState(params.get('q') ?? '');
+  const [showFilters, setShowFilters] = useState(false);
+
+  const filters = {
+    q: params.get('q') ?? '',
+    status: params.get('status') ?? '',
+    loanType: params.get('loanType') ?? '',
+    bankId: params.get('bankId') ?? '',
+    projectId: params.get('projectId') ?? '',
+    teamPartnerId: params.get('teamPartnerId') ?? '',
+    dsaId: params.get('dsaId') ?? '',
+    from: params.get('from') ?? '',
+    to: params.get('to') ?? '',
+    page: Number(params.get('page') ?? 1),
+  };
+  const set = (patch: Partial<typeof filters>) => {
+    const next = new URLSearchParams(params.toString());
+    for (const [k, v] of Object.entries({ ...patch, page: patch.page ?? 1 })) {
+      if (v === '' || v === undefined || (k === 'page' && v === 1)) next.delete(k);
+      else next.set(k, String(v));
+    }
+    router.replace(`${pathname}?${next.toString()}`, { scroll: false });
+  };
+
+  // Debounced search
+  useEffect(() => {
+    const t = setTimeout(() => q !== filters.q && set({ q }), 350);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [q]);
+
+  const list = useQuery({
+    queryKey: ['cases', filters],
+    queryFn: () => api.page<CaseRow>('/cases', { ...filters, pageSize: 20 }),
+    placeholderData: keepPreviousData,
+  });
+  const banks = useQuery({ queryKey: ['banks'], queryFn: () => api.get<{ id: string; name: string }[]>('/banks'), staleTime: 3600_000 });
+  const loanTypes = useQuery({ queryKey: ['loan-types'], queryFn: () => api.get<{ code: string; name: string }[]>('/loan-types'), staleTime: 3600_000 });
+  const projects = useQuery({ queryKey: ['projects', 'all'], queryFn: () => api.page<{ id: string; name: string }>('/projects', { pageSize: 100 }), staleTime: 300_000 });
+  const team = useQuery({
+    queryKey: ['team-list'],
+    queryFn: () => api.page<{ id: string; name: string }>('/users', { role: 'TEAM_PARTNER', pageSize: 100 }),
+    enabled: me?.role === 'DSA',
+  });
+
+  const activeStatuses = filters.status ? filters.status.split(',') : [];
+  const filterCount = ['loanType', 'bankId', 'projectId', 'teamPartnerId', 'dsaId', 'from', 'to'].filter((k) => (filters as any)[k]).length;
+
+  return (
+    <div>
+      <PageHeader
+        title="All Cases"
+        sub={list.data ? `${list.data.meta.total} ${list.data.meta.total === 1 ? 'case' : 'cases'}` : ' '}
+        actions={
+          can('CASE_CREATE') && (
+            <Link href="/cases/new">
+              <Button icon={<Plus className="h-4 w-4" />}>Add New Case</Button>
+            </Link>
+          )
+        }
+      />
+
+      <div className="space-y-3">
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400" />
+            <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Customer, mobile, case ID or loan account" className="pl-9" aria-label="Search cases" />
+          </div>
+          <Button variant="secondary" onClick={() => setShowFilters((v) => !v)} icon={<SlidersHorizontal className="h-4 w-4" />} aria-expanded={showFilters}>
+            <span className="hidden sm:inline">Filters</span>
+            {filterCount > 0 && <span className="rounded-full bg-ink px-1.5 text-xs text-white">{filterCount}</span>}
+          </Button>
+        </div>
+
+        <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 sm:mx-0 sm:flex-wrap sm:px-0" role="group" aria-label="Status">
+          <button onClick={() => set({ status: '' })} className={cx('shrink-0 rounded-full px-3 py-1.5 text-sm font-semibold ring-1 ring-inset', !activeStatuses.length ? 'bg-ink text-white ring-ink' : 'bg-white text-ink-600 ring-ink-200')}>
+            All
+          </button>
+          {CASE_STATUSES.map((st) => {
+            const on = activeStatuses.includes(st);
+            return (
+              <button
+                key={st}
+                aria-pressed={on}
+                onClick={() => set({ status: on ? activeStatuses.filter((x) => x !== st).join(',') : [...activeStatuses, st].join(',') })}
+                className={cx('shrink-0 rounded-full px-3 py-1.5 text-sm font-semibold ring-1 ring-inset', on ? 'bg-ink text-white ring-ink' : 'bg-white text-ink-600 ring-ink-200')}
+              >
+                {CASE_STATUS_LABELS[st]}
+              </button>
+            );
+          })}
+        </div>
+
+        {showFilters && (
+          <Card className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2 lg:grid-cols-6">
+            <Select aria-label="Loan type" value={filters.loanType} onChange={(e) => set({ loanType: e.target.value })}>
+              <option value="">All loan types</option>
+              {loanTypes.data?.map((l) => <option key={l.code} value={l.code}>{l.name}</option>)}
+            </Select>
+            <Select aria-label="Bank" value={filters.bankId} onChange={(e) => set({ bankId: e.target.value })}>
+              <option value="">All banks</option>
+              {banks.data?.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+            </Select>
+            <Select aria-label="Project" value={filters.projectId} onChange={(e) => set({ projectId: e.target.value })}>
+              <option value="">All projects</option>
+              {projects.data?.data.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </Select>
+            {me?.role === 'DSA' ? (
+              <Select aria-label="Team Partner" value={filters.teamPartnerId} onChange={(e) => set({ teamPartnerId: e.target.value })}>
+                <option value="">Everyone in team</option>
+                {team.data?.data.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+              </Select>
+            ) : (
+              <div className="hidden lg:block" />
+            )}
+            <Input type="date" aria-label="From date" value={filters.from} onChange={(e) => set({ from: e.target.value })} />
+            <Input type="date" aria-label="To date" value={filters.to} onChange={(e) => set({ to: e.target.value })} />
+            {filterCount > 0 && (
+              <button onClick={() => set({ loanType: '', bankId: '', projectId: '', teamPartnerId: '', dsaId: '', from: '', to: '' })} className="flex items-center gap-1 text-sm font-semibold text-brand-red sm:col-span-2 lg:col-span-6">
+                <X className="h-4 w-4" /> Clear filters
+              </button>
+            )}
+          </Card>
+        )}
+
+        {list.isError ? (
+          <Card>
+            <ErrorState error={list.error} onRetry={() => list.refetch()} />
+          </Card>
+        ) : list.isLoading ? (
+          <Card className="space-y-3 p-4">
+            {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-12" />)}
+          </Card>
+        ) : !list.data?.data.length ? (
+          <Card>
+            <EmptyState
+              title={filters.q || filters.status || filterCount ? 'No cases match these filters' : 'No cases yet'}
+              body={filters.q || filters.status || filterCount ? 'Try a different search or clear the filters.' : 'Cases you add appear here with their current stage.'}
+            />
+          </Card>
+        ) : (
+          <>
+            {/* Desktop table */}
+            <Card className="hidden overflow-hidden md:block">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-ink-50 text-left text-xs font-semibold uppercase tracking-wide text-ink-500">
+                    <tr>
+                      <th className="px-4 py-3">Customer</th>
+                      <th className="px-4 py-3">Loan type</th>
+                      <th className="px-4 py-3">Loan account</th>
+                      <th className="px-4 py-3">Status</th>
+                      <th className="hidden px-4 py-3 text-right lg:table-cell">Amount</th>
+                      <th className="hidden px-4 py-3 xl:table-cell">Bank</th>
+                      <th className="hidden px-4 py-3 xl:table-cell">{me?.role === 'TEAM_PARTNER' ? 'Project' : 'Partner'}</th>
+                      <th className="hidden px-4 py-3 lg:table-cell">Created</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-ink-100">
+                    {list.data.data.map((c) => (
+                      <tr key={c.id} className="hover:bg-ink-50/60">
+                        <td className="px-4 py-3">
+                          <Link href={`/cases/${c.id}`} className="font-semibold text-ink hover:text-teal-700 hover:underline">
+                            {c.customer.name}
+                          </Link>
+                          <p className="text-xs text-ink-500">{c.caseNo}</p>
+                        </td>
+                        <td className="px-4 py-3 text-ink-700">{loanTypeName(c.loanType)}</td>
+                        <td className="px-4 py-3 tabular-nums text-ink-700">{c.loanAccountNo ?? <span className="text-ink-400">—</span>}</td>
+                        <td className="px-4 py-3">
+                          <StatusChip status={c.status} />
+                          {c.daysInStage > 15 && !['HANDOVER', 'REJECT', 'WITHDRAW'].includes(c.status) && <p className="mt-1 text-xs font-medium text-brand-red">{c.daysInStage} days in stage</p>}
+                        </td>
+                        <td className="hidden px-4 py-3 text-right tabular-nums lg:table-cell">{formatINR(c.handoverAmount ?? c.appliedAmount, { whole: true })}</td>
+                        <td className="hidden px-4 py-3 text-ink-700 xl:table-cell">{c.bank.name}</td>
+                        <td className="hidden px-4 py-3 text-ink-700 xl:table-cell">{me?.role === 'TEAM_PARTNER' ? c.project?.name ?? '—' : c.teamPartner?.name ?? c.dsa?.name}</td>
+                        <td className="hidden px-4 py-3 text-ink-500 lg:table-cell">{fmtDate(c.createdAt)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+            {/* Mobile cards */}
+            <ul className="space-y-2 md:hidden">
+              {list.data.data.map((c) => (
+                <li key={c.id}>
+                  <Link href={`/cases/${c.id}`} className="block rounded-2xl border border-ink-200/70 bg-white p-4 shadow-card active:bg-ink-50">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate font-semibold text-ink">{c.customer.name}</p>
+                        <p className="text-sm text-ink-600">{loanTypeName(c.loanType)}</p>
+                      </div>
+                      <StatusChip status={c.status} />
+                    </div>
+                    <div className="mt-3 flex items-center justify-between text-xs text-ink-500">
+                      <span className="tabular-nums">{c.loanAccountNo ? `A/c ${c.loanAccountNo}` : c.caseNo}</span>
+                      <span className="tabular-nums font-semibold text-ink-700">{formatINR(c.handoverAmount ?? c.appliedAmount, { whole: true })}</span>
+                    </div>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+            <Pagination page={list.data.meta.page} pageSize={list.data.meta.pageSize} total={list.data.meta.total} onPage={(p) => set({ page: p })} />
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
