@@ -10,6 +10,10 @@
     "lint": "pnpm -r lint",
     "test": "pnpm -r test",
     "db:migrate": "pnpm --filter @rupeemap/api prisma:migrate",
-    "db:seed": "pnpm --filter @rupeemap/api seed"
+    "db:seed": "pnpm --filter @rupeemap/api seed",
+    "db:local": "node scripts/local-db.mjs"
+  },
+  "devDependencies": {
+    "embedded-postgres": "17.5.0-beta.15"
   }
 }

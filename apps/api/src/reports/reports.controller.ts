@@ -60,7 +60,7 @@ export class ReportsController {
     const dir = f.dir === 'asc' ? Prisma.sql`ASC` : Prisma.sql`DESC`;
     const rows = await this.prisma.$queryRaw<any[]>`
       WITH c AS (
-        SELECT c.id, c.project_id, c.status, c.applied_amount, c.sanction_amount, c.disbursed_total, c.handover_amount
+        SELECT c.id, c.project_id, c.dsa_id, c.status, c.applied_amount, c.sanction_amount, c.disbursed_total, c.handover_amount
         FROM loan_cases c WHERE ${caseWhere}
       ),
       pay AS (
