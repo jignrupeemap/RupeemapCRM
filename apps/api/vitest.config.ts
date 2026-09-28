@@ -11,7 +11,7 @@ export default defineConfig({
     env: {
       NODE_ENV: 'test',
       DATABASE_URL: process.env.TEST_DATABASE_URL ?? 'postgresql://postgres@127.0.0.1:5432/rupeemap_test',
-      REDIS_URL: process.env.TEST_REDIS_URL ?? 'redis://127.0.0.1:6379/1',
+      REDIS_URL: process.env.TEST_REDIS_URL ?? 'memory://',
       OTP_PEPPER: 'test-pepper',
       SMS_PROVIDER: 'console',
     },

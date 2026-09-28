@@ -23,6 +23,7 @@ enum UserStatus {
   ACTIVE
   BLOCKED
   SUSPENDED
+  DEACTIVATED
 }
 
 enum CaseStatus {
@@ -90,6 +91,12 @@ model User {
   failedLogins      Int        @default(0) @map("failed_logins")
   lockedUntil       DateTime?  @map("locked_until")
   lastLoginAt       DateTime?  @map("last_login_at")
+  activatedAt       DateTime?  @map("activated_at")
+  /// Partner inactivity: when Admin/Executives were last alerted, and deactivation/reactivation marks.
+  inactivityAlertedAt DateTime? @map("inactivity_alerted_at")
+  deactivatedAt     DateTime?  @map("deactivated_at")
+  deactivationReason String?   @map("deactivation_reason")
+  reactivatedAt     DateTime?  @map("reactivated_at")
   createdById       String?    @map("created_by") @db.Uuid
   createdAt         DateTime   @default(now()) @map("created_at")
   updatedAt         DateTime   @updatedAt @map("updated_at")
@@ -545,6 +552,18 @@ model AuditLog {
   @@index([entity, entityId])
   @@index([actorId, at])
   @@map("audit_logs")
+}
+
+/// One row per scheduled job per day, so a daily job runs once even with several API instances.
+model JobRun {
+  name       String
+  runDate    DateTime  @map("run_date") @db.Date
+  startedAt  DateTime  @default(now()) @map("started_at")
+  finishedAt DateTime? @map("finished_at")
+  result     Json?
+
+  @@id([name, runDate])
+  @@map("job_runs")
 }
 
 model IdempotencyKey {

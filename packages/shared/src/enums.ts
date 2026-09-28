@@ -8,7 +8,7 @@ export const ROLE_LABELS: Record<Role, string> = {
   TEAM_PARTNER: 'Team Partner',
 };
 
-export const USER_STATUSES = ['PENDING_ACTIVATION', 'ACTIVE', 'BLOCKED', 'SUSPENDED'] as const;
+export const USER_STATUSES = ['PENDING_ACTIVATION', 'ACTIVE', 'BLOCKED', 'SUSPENDED', 'DEACTIVATED'] as const;
 export type UserStatus = (typeof USER_STATUSES)[number];
 
 export const CASE_STATUSES = [
@@ -97,3 +97,24 @@ export const ERROR_CODES = [
   'INTERNAL_ERROR',
 ] as const;
 export type ErrorCode = (typeof ERROR_CODES)[number];
+
+export const USER_STATUS_LABELS: Record<UserStatus, string> = {
+  PENDING_ACTIVATION: 'Not activated',
+  ACTIVE: 'Active',
+  BLOCKED: 'Blocked',
+  SUSPENDED: 'Suspended',
+  DEACTIVATED: 'Deactivated (inactive)',
+};
+
+/**
+ * Partner inactivity rule. "Business" is a new case login or a payout. Days are
+ * counted from the later of the last business, account activation and reactivation.
+ */
+export const INACTIVITY = {
+  /** Shown on the Inactive Partners screen as "slowing down". */
+  WATCH_DAYS: 30,
+  /** Admin and Executives are alerted once per inactive spell. */
+  ALERT_DAYS: 60,
+  /** The partner code is deactivated automatically; only Admin can reactivate. */
+  DEACTIVATE_DAYS: 90,
+} as const;

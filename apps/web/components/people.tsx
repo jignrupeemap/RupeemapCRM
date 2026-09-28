@@ -17,7 +17,7 @@ export interface Person {
   mobile: string;
   email: string | null;
   role: Role;
-  status: 'PENDING_ACTIVATION' | 'ACTIVE' | 'BLOCKED' | 'SUSPENDED';
+  status: 'PENDING_ACTIVATION' | 'ACTIVE' | 'BLOCKED' | 'SUSPENDED' | 'DEACTIVATED';
   lastLoginAt: string | null;
   createdAt: string;
   dsaCode: string | null;
@@ -32,6 +32,7 @@ const STATUS: Record<Person['status'], [string, 'teal' | 'gold' | 'red' | 'neutr
   PENDING_ACTIVATION: ['Not activated', 'gold'],
   BLOCKED: ['Blocked', 'red'],
   SUSPENDED: ['Suspended', 'neutral'],
+  DEACTIVATED: ['Deactivated · inactive', 'red'],
 };
 
 export function PeopleList({ role, title }: { role?: Role; title?: string }) {
@@ -158,7 +159,7 @@ function RowMenu({ p, onAction }: { p: Person; onAction: (k: 'rate' | 'status' |
     ['Reset password', KeyRound, 'reset', can('USER_RESET_PASSWORD') && p.role !== 'ADMIN' && (p.role !== 'EXECUTIVE' || me?.role === 'ADMIN')],
     ['Verify KYC', ShieldCheck, 'kyc', can('KYC_VERIFY') && !!p.kycStatus && p.kycStatus !== 'APPROVED'],
     ['Promote to DSA', TrendingUp, 'promote', can('USER_PROMOTE') && p.role === 'TEAM_PARTNER'],
-    [p.status === 'ACTIVE' ? 'Block or suspend' : 'Change status', UserX, 'status', can('USER_BLOCK') && p.role !== 'ADMIN' && p.id !== me?.id],
+    [p.status === 'ACTIVE' ? 'Block or suspend' : 'Change status', UserX, 'status', can('USER_BLOCK') && p.role !== 'ADMIN' && p.id !== me?.id && p.status !== 'DEACTIVATED'],
   ];
   const shown = items.filter((i) => i[3]);
   if (!shown.length) return null;

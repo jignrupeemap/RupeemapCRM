@@ -69,6 +69,8 @@ export class AuthService {
     }
     if (user.status === 'BLOCKED') throw new AppError('FORBIDDEN', 'Your account is blocked. Please contact Rupeemap support.');
     if (user.status === 'SUSPENDED') throw new AppError('FORBIDDEN', 'Your account is suspended. Please contact Rupeemap support.');
+    if (user.status === 'DEACTIVATED')
+      throw new AppError('FORBIDDEN', 'Your partner code was deactivated after 90 days without a case login or payout. Please contact Rupeemap to reactivate it.');
 
     return this.prisma.$transaction(async (tx) => {
       await tx.user.update({ where: { id: user.id }, data: { failedLogins: 0, lockedUntil: null, lastLoginAt: new Date() } });
@@ -163,13 +165,21 @@ export class AuthService {
     const t = await this.redis.getJson<{ userId: string; purpose: OtpPurpose }>(key);
     if (!t) throw new AppError('VALIDATION_ERROR', 'This link has expired. Request a new OTP.');
     const user = await this.prisma.user.findUniqueOrThrow({ where: { id: t.userId }, include: { passwordHistory: { orderBy: { createdAt: 'desc' }, take: PASSWORD_HISTORY } } });
-    if (user.status === 'BLOCKED' || user.status === 'SUSPENDED') throw new AppError('FORBIDDEN', 'Your account is not active. Please contact Rupeemap support.');
+    if (user.status === 'BLOCKED' || user.status === 'SUSPENDED' || user.status === 'DEACTIVATED')
+      throw new AppError('FORBIDDEN', 'Your account is not active. Please contact Rupeemap support.');
     await this.assertNotReused(password, user.passwordHistory.map((h) => h.passwordHash));
     const passwordHash = await hashPassword(password);
     const result = await this.prisma.$transaction(async (tx) => {
       await tx.user.update({
         where: { id: user.id },
-        data: { passwordHash, status: 'ACTIVE', mobileVerified: true, failedLogins: 0, lockedUntil: null },
+        data: {
+          passwordHash,
+          status: 'ACTIVE',
+          mobileVerified: true,
+          failedLogins: 0,
+          lockedUntil: null,
+          ...(user.activatedAt ? {} : { activatedAt: new Date() }),
+        },
       });
       await tx.passwordHistory.create({ data: { userId: user.id, passwordHash } });
       await this.revokeAll(user.id, tx);

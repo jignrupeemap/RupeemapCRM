@@ -52,7 +52,8 @@ export class UsersService {
     if (!dsaUserId) throw new AppError('VALIDATION_ERROR', 'Choose the DSA this Team Partner belongs to', { fields: { dsaId: 'Choose a DSA' } });
     const dsa = await this.prisma.dsaPartner.findUnique({ where: { userId: dsaUserId }, include: { user: true } });
     if (!dsa || dsa.user.deletedAt || dsa.user.role !== 'DSA') throw new AppError('VALIDATION_ERROR', 'Selected DSA does not exist');
-    if (dsa.user.status === 'BLOCKED' || dsa.user.status === 'SUSPENDED') throw new AppError('VALIDATION_ERROR', 'Selected DSA is not active');
+    if (dsa.user.status === 'BLOCKED' || dsa.user.status === 'SUSPENDED' || dsa.user.status === 'DEACTIVATED')
+      throw new AppError('VALIDATION_ERROR', 'Selected DSA is not active');
     return dsa;
   }
 
@@ -208,7 +209,14 @@ export class UsersService {
     if (!target || target.deletedAt) throw notFound('User');
     if (target.id === actor.id) throw forbidden('You cannot change your own account status');
     if (target.role === 'ADMIN' || (target.role === 'EXECUTIVE' && actor.role !== 'ADMIN')) throw forbidden();
-    const next = { BLOCK: 'BLOCKED', UNBLOCK: 'ACTIVE', SUSPEND: 'SUSPENDED', ACTIVATE: 'ACTIVE' }[body.action] as 'ACTIVE' | 'BLOCKED' | 'SUSPENDED';
+    if (target.status === 'DEACTIVATED') {
+      throw forbidden(
+        actor.role === 'ADMIN'
+          ? 'This code was deactivated for inactivity. Use Reactivate in Inactive Partners.'
+          : 'This code was deactivated for inactivity. Only Admin can reactivate it.',
+      );
+    }
+    const next ={ BLOCK: 'BLOCKED', UNBLOCK: 'ACTIVE', SUSPEND: 'SUSPENDED', ACTIVATE: 'ACTIVE' }[body.action] as 'ACTIVE' | 'BLOCKED' | 'SUSPENDED';
     if ((body.action === 'UNBLOCK' || body.action === 'ACTIVATE') && !target.passwordHash) {
       throw new AppError('VALIDATION_ERROR', 'This user has not activated their account yet');
     }

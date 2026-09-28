@@ -14,6 +14,8 @@ import { PayoutsController } from './payouts/payouts.controller';
 import { DashboardController } from './dashboard/dashboard.controller';
 import { NotificationsController } from './notifications/notifications.controller';
 import { HealthController } from './health/health.controller';
+import { InactivityController } from './inactivity/inactivity.controller';
+import { InactivityService } from './inactivity/inactivity.service';
 
 @Module({
   imports: [CommonModule],
@@ -26,11 +28,13 @@ import { HealthController } from './health/health.controller';
     DashboardController,
     NotificationsController,
     HealthController,
+    InactivityController,
   ],
   providers: [
     AuthService,
     UsersService,
     CasesService,
+    InactivityService,
     { provide: APP_GUARD, useClass: AuthGuard },
     { provide: APP_INTERCEPTOR, useClass: EnvelopeInterceptor },
     { provide: APP_FILTER, useClass: GlobalExceptionFilter },

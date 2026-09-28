@@ -13,6 +13,7 @@ import {
   Wallet,
   AlarmClock,
   ArrowUpRight,
+  UserMinus,
 } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
@@ -25,6 +26,13 @@ import { HeroSlider, type Slide } from '@/components/hero-slider';
 import { Banner, Card, cx, EmptyState, Kpi, SectionTitle, Skeleton, StatusChip } from '@/components/ui';
 
 const TrendChart = dynamic(() => import('@/components/trend-chart'), { ssr: false, loading: () => <Skeleton className="h-56" /> });
+
+interface InactivitySummary {
+  watch: number;
+  alert: number;
+  due: number;
+  deactivated: number;
+}
 
 interface Summary {
   cases: Record<string, number> & { total: number };
@@ -73,8 +81,15 @@ export default function DashboardPage() {
   const [range, setRange] = useState<string>('all');
   const sliders = useQuery({ queryKey: ['sliders'], queryFn: () => api.get<Slide[]>('/sliders/active'), staleTime: 300_000 });
   const summary = useQuery({ queryKey: ['dashboard', range], queryFn: () => api.get<Summary>('/dashboard/summary', rangeParams(range)) });
+  const isStaff = me?.role === 'ADMIN' || me?.role === 'EXECUTIVE';
+  const inactivity = useQuery({
+    queryKey: ['inactivity', 'summary'],
+    queryFn: () => api.get<InactivitySummary>('/inactivity/summary'),
+    enabled: !!isStaff && !!me?.permissions.includes('USER_VIEW'),
+    staleTime: 300_000,
+  });
   if (!me) return null;
-  const isAdmin = me.role === 'ADMIN' || me.role === 'EXECUTIVE';
+  const isAdmin = isStaff;
   const s = summary.data;
   const quick = QUICK.filter((q) => (!q.perm || me.permissions.includes(q.perm)) && (!q.roles || q.roles.includes(me.role)));
   const hour = Number(new Intl.DateTimeFormat('en-IN', { hour: 'numeric', hour12: false, timeZone: 'Asia/Kolkata' }).format(new Date()));
@@ -173,6 +188,17 @@ export default function DashboardPage() {
               <AttentionRow icon={<AlarmClock className="h-4 w-4" />} tone="red" label="Cases stuck more than 15 days in one stage" value={s.stuckCases} />
               <AttentionRow icon={<HelpCircle className="h-4 w-4" />} tone="gold" label="Cases in Query" value={s.cases.QUERY} />
               <AttentionRow icon={<Wallet className="h-4 w-4" />} tone="gold" label="Payouts on Hold" value={s.payouts.HOLD.count} />
+              {inactivity.data && (
+                <li>
+                  <Link href="/inactive-partners" className="-mx-2 flex items-center gap-3 rounded-xl px-2 py-1 hover:bg-ink-50">
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-redsoft text-red-700">
+                      <UserMinus className="h-4 w-4" />
+                    </span>
+                    <span className="flex-1 text-sm text-ink-700">Partners with no business for 60+ days</span>
+                    <span className="font-display text-lg font-bold tabular-nums">{inactivity.data.alert + inactivity.data.due}</span>
+                  </Link>
+                </li>
+              )}
               <AttentionRow icon={<Wallet className="h-4 w-4" />} tone="teal" label="Received from bank" value={`${s.bankReceived.count} · ${formatINRCompact(s.bankReceived.amount)}`} />
             </ul>
           ) : (
@@ -239,7 +265,7 @@ export default function DashboardPage() {
         </Card>
       </div>
 
-      {isAdmin && s && s.users.length > 0 && <UsersOverview users={s.users} />}
+      {isAdmin && s && s.users.length > 0 && <UsersOverview users={s.users} inactivity={inactivity.data} />}
     </div>
   );
 }
@@ -255,18 +281,24 @@ function AttentionRow({ icon, label, value, tone }: { icon: React.ReactNode; lab
   );
 }
 
-function UsersOverview({ users }: { users: { role: string; status: string; count: number }[] }) {
+function UsersOverview({ users, inactivity }: { users: { role: string; status: string; count: number }[]; inactivity?: InactivitySummary }) {
   const count = (role?: string, status?: string) => users.filter((u) => (!role || u.role === role) && (!status || u.status === status)).reduce((a, u) => a + u.count, 0);
   return (
     <section aria-label="Users">
       <SectionTitle title="Users" action={<Link href="/users" className="text-sm font-semibold text-teal-700">Manage users <ArrowUpRight className="inline h-4 w-4" /></Link>} />
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8">
         <Kpi label="DSA Partners" value={count('DSA')} href="/users?role=DSA" />
         <Kpi label="Team Partners" value={count('TEAM_PARTNER')} href="/users?role=TEAM_PARTNER" />
         <Kpi label="Executives" value={count('EXECUTIVE')} href="/users?role=EXECUTIVE" />
         <Kpi label="Active" value={count(undefined, 'ACTIVE')} tone="teal" />
         <Kpi label="Blocked" value={count(undefined, 'BLOCKED')} tone={count(undefined, 'BLOCKED') ? 'red' : 'neutral'} />
         <Kpi label="Suspended" value={count(undefined, 'SUSPENDED')} />
+        {inactivity && (
+          <>
+            <Kpi label="Inactive 60+ days" value={inactivity.alert + inactivity.due} sub={`${inactivity.watch} more at 30+ days`} tone={inactivity.alert + inactivity.due ? 'gold' : 'neutral'} href="/inactive-partners" />
+            <Kpi label="Deactivated" value={inactivity.deactivated} sub="90 days, no business" tone={inactivity.deactivated ? 'red' : 'neutral'} href="/inactive-partners?tab=deactivated" />
+          </>
+        )}
       </div>
     </section>
   );
