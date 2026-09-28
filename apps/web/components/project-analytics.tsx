@@ -157,7 +157,7 @@ export function ProjectAnalytics() {
                     <div className="flex items-baseline justify-between gap-2 text-sm">
                       <span className="font-semibold tabular-nums">{active.fmt(active.value(r))}</span>
                       <span className="text-xs tabular-nums text-ink-500">
-                        {r.logins} login · {r.sanctioned} sanction · {r.handovers} handover
+                        {r.sanctioned} sanctioned · {r.handovers} handed over
                       </span>
                     </div>
                     <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-ink-100" aria-hidden>

@@ -133,7 +133,7 @@ function Inactive() {
 
       <div className="flex flex-col gap-2 sm:flex-row">
         <Input placeholder="Search name or mobile" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search partners" className="sm:max-w-xs" />
-        <Select value={role} onChange={(e) => setRole(e.target.value)} aria-label="Role" className="sm:max-w-[200px]">
+        <Select value={role} onChange={(e) => setRole(e.target.value)} aria-label="Role" className="sm:max-w-[260px]">
           <option value="">DSA and Team Partners</option>
           <option value="DSA">DSA Partners</option>
           <option value="TEAM_PARTNER">Team Partners</option>
@@ -241,9 +241,9 @@ function PartnerCell({ r }: { r: Row }) {
           {r.name}
         </Link>
         <p className="truncate text-xs text-ink-500">
-          <Badge tone={r.role === 'DSA' ? 'dark' : 'neutral'}>{r.role === 'DSA' ? `DSA ${r.dsaCode ?? ''}` : 'Team Partner'}</Badge>
+          <Badge tone={r.role === 'DSA' ? 'dark' : 'neutral'}>{r.role === 'DSA' ? (r.dsaCode ?? 'DSA') : 'Team Partner'}</Badge>
           {r.dsaName && <span> · Team of {r.dsaName}</span>}
-          <span> · {r.totalCases} cases in total</span>
+          <span> · {r.totalCases} {r.totalCases === 1 ? 'case' : 'cases'} in total</span>
         </p>
       </div>
     </div>
