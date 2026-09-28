@@ -1,0 +1,99 @@
+export const ROLES = ['ADMIN', 'EXECUTIVE', 'DSA', 'TEAM_PARTNER'] as const;
+export type Role = (typeof ROLES)[number];
+
+export const ROLE_LABELS: Record<Role, string> = {
+  ADMIN: 'Admin',
+  EXECUTIVE: 'Admin Executive',
+  DSA: 'DSA Partner',
+  TEAM_PARTNER: 'Team Partner',
+};
+
+export const USER_STATUSES = ['PENDING_ACTIVATION', 'ACTIVE', 'BLOCKED', 'SUSPENDED'] as const;
+export type UserStatus = (typeof USER_STATUSES)[number];
+
+export const CASE_STATUSES = [
+  'LOGIN',
+  'SANCTION',
+  'DISBURSED',
+  'HANDOVER',
+  'QUERY',
+  'REJECT',
+  'WITHDRAW',
+] as const;
+export type CaseStatus = (typeof CASE_STATUSES)[number];
+
+export const CASE_STATUS_LABELS: Record<CaseStatus, string> = {
+  LOGIN: 'Login',
+  SANCTION: 'Sanction',
+  DISBURSED: 'Disbursed',
+  HANDOVER: 'Handover',
+  QUERY: 'Query',
+  REJECT: 'Reject',
+  WITHDRAW: 'Withdraw',
+};
+
+/** Default loan types; the live list is admin-configurable master data. */
+export const DEFAULT_LOAN_TYPES = [
+  { code: 'HOME_LOAN', name: 'Home Loan' },
+  { code: 'MORTGAGE_LOAN', name: 'Mortgage Loan' },
+  { code: 'BUSINESS_LOAN', name: 'Business Loan' },
+  { code: 'USED_CAR_LOAN', name: 'Used Car Loan' },
+  { code: 'OTHER', name: 'Other' },
+] as const;
+
+export const DISBURSEMENT_TYPES = ['PART', 'PART_TO_FULL', 'FULL'] as const;
+export type DisbursementType = (typeof DISBURSEMENT_TYPES)[number];
+export const DISBURSEMENT_TYPE_LABELS: Record<DisbursementType, string> = {
+  PART: 'Part Payment',
+  PART_TO_FULL: 'Part to Full',
+  FULL: 'Full',
+};
+
+export const PAYOUT_STATUSES = ['PENDING', 'CONFIRMED', 'PAID', 'HOLD'] as const;
+export type PayoutStatus = (typeof PAYOUT_STATUSES)[number];
+export const PAYOUT_STATUS_LABELS: Record<PayoutStatus, string> = {
+  PENDING: 'Pending',
+  CONFIRMED: 'Confirmed',
+  PAID: 'Paid',
+  HOLD: 'Hold',
+};
+
+export const KYC_STATUSES = [
+  'DOCUMENTS_PENDING',
+  'UPLOADED',
+  'UNDER_ADMIN_VERIFICATION',
+  'APPROVED',
+  'REJECTED',
+  'RESUBMISSION_REQUIRED',
+] as const;
+export type KycStatus = (typeof KYC_STATUSES)[number];
+
+export const PROJECT_TYPES = ['RESIDENTIAL', 'COMMERCIAL', 'INDUSTRIAL'] as const;
+export type ProjectType = (typeof PROJECT_TYPES)[number];
+export const UNIT_TYPES = ['FLAT', 'PLOT', 'BUNGALOW', 'OFFICE', 'SHOP', 'SHED', 'HOUSE'] as const;
+export type UnitType = (typeof UNIT_TYPES)[number];
+export const MEASUREMENT_UNITS = ['SQFT', 'SQYD', 'SBA', 'CARPET'] as const;
+export type MeasurementUnit = (typeof MEASUREMENT_UNITS)[number];
+export const MEASUREMENT_UNIT_LABELS: Record<MeasurementUnit, string> = {
+  SQFT: 'Sq. Ft.',
+  SQYD: 'Sq. Yard',
+  SBA: 'SBA',
+  CARPET: 'Carpet',
+};
+
+export const OTP_PURPOSES = ['ACTIVATE', 'RESET_PASSWORD'] as const;
+export type OtpPurpose = (typeof OTP_PURPOSES)[number];
+
+export const ERROR_CODES = [
+  'VALIDATION_ERROR',
+  'UNAUTHENTICATED',
+  'FORBIDDEN',
+  'NOT_FOUND',
+  'CONFLICT',
+  'INVALID_TRANSITION',
+  'KYC_NOT_APPROVED',
+  'DUPLICATE_SUSPECTED',
+  'RATE_LIMITED',
+  'INTERNAL_ERROR',
+] as const;
+export type ErrorCode = (typeof ERROR_CODES)[number];
