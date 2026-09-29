@@ -325,6 +325,7 @@ model Document {
   deletedAt    DateTime? @map("deleted_at")
   kyc          KycDocument?
   ticketMessage TicketMessage?
+  notification Notification?
   accessLogs   DocumentAccessLog[]
 
   @@map("documents")
@@ -867,9 +868,12 @@ model Notification {
   startsAt    DateTime @default(now()) @map("starts_at")
   expiresAt   DateTime? @map("expires_at")
   sentById    String?  @map("sent_by") @db.Uuid
+  documentId  String?  @unique @map("document_id") @db.Uuid
   createdAt   DateTime @default(now()) @map("created_at")
   recipients  NotificationRecipient[]
+  document    Document? @relation(fields: [documentId], references: [id])
 
+  @@index([sentById, createdAt(sort: Desc)])
   @@map("notifications")
 }
 
