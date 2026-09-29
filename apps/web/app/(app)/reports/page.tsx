@@ -80,7 +80,7 @@ export default function ReportsPage() {
         <div className="min-w-0 space-y-3">
           <div className="flex flex-col gap-2 print:hidden xl:flex-row xl:items-start xl:justify-between">
             <div className="flex flex-wrap gap-2">
-              <Select value={bankId} onChange={(e) => setBankId(e.target.value)} className="w-44" aria-label="Bank">
+              <Select value={bankId} onChange={(e) => setBankId(e.target.value)} className="sm:w-44" aria-label="Bank">
                 <option value="">All banks</option>
                 {banks.data?.map((b) => (
                   <option key={b.id} value={b.id}>
@@ -89,7 +89,7 @@ export default function ReportsPage() {
                 ))}
               </Select>
               {staff && (
-                <Select value={dsaId} onChange={(e) => setDsaId(e.target.value)} className="w-44" aria-label="DSA">
+                <Select value={dsaId} onChange={(e) => setDsaId(e.target.value)} className="sm:w-44" aria-label="DSA">
                   <option value="">All DSAs</option>
                   {dsas.map((p) => (
                     <option key={p.id} value={p.id}>
@@ -99,7 +99,7 @@ export default function ReportsPage() {
                 </Select>
               )}
               {(staff || me?.role === 'DSA') && (
-                <Select value={teamPartnerId} onChange={(e) => setTeamPartnerId(e.target.value)} className="w-44" aria-label="Team Partner">
+                <Select value={teamPartnerId} onChange={(e) => setTeamPartnerId(e.target.value)} className="sm:w-44" aria-label="Team Partner">
                   <option value="">All Team Partners</option>
                   {tps.map((p) => (
                     <option key={p.id} value={p.id}>

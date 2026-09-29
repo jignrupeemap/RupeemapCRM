@@ -30,6 +30,7 @@ import { TicketsController } from './tickets/tickets.controller';
 import { TicketsService } from './tickets/tickets.service';
 import { SlidersController } from './sliders/sliders.controller';
 import { RecoveryController } from './recovery/recovery.controller';
+import { AuditController } from './audit/audit.controller';
 import { RecoveryService } from './recovery/recovery.service';
 
 @Module({
@@ -53,6 +54,7 @@ import { RecoveryService } from './recovery/recovery.service';
     TicketsController,
     SlidersController,
     RecoveryController,
+    AuditController,
   ],
   providers: [
     AuthService,

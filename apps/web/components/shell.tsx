@@ -74,7 +74,7 @@ export const NAV: { group: string; items: NavItem[] }[] = [
       { href: '/queries', label: 'Raise Query', icon: HelpCircle, perm: 'QUERY_CREATE' },
       { href: '/assistance', label: 'Need Assistance', icon: LifeBuoy, perm: 'SUPPORT_CREATE' },
       { href: '/sliders', label: 'Dashboard slider', icon: GalleryHorizontal, perm: 'SLIDER_MANAGE' },
-      { href: '/audit', label: 'Audit Log', icon: ShieldCheck, perm: 'AUDIT_VIEW', soon: true },
+      { href: '/audit', label: 'Audit Log', icon: ShieldCheck, perm: 'AUDIT_VIEW' },
     ],
   },
 ];

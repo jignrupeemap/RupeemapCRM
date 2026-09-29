@@ -22,6 +22,35 @@ function scrub(v: unknown): unknown {
   return v;
 }
 
+/** JSON with object keys sorted, so a row hashes the same after a round trip through jsonb. */
+export function canonical(v: unknown): string {
+  if (v === null || v === undefined) return 'null';
+  if (Array.isArray(v)) return `[${v.map(canonical).join(',')}]`;
+  if (typeof v === 'object') {
+    const o = v as Record<string, unknown>;
+    const keys = Object.keys(o).filter((k) => o[k] !== undefined).sort();
+    return `{${keys.map((k) => `${JSON.stringify(k)}:${canonical(o[k])}`).join(',')}}`;
+  }
+  return JSON.stringify(v);
+}
+
+export interface HashInput {
+  prevHash: string | null;
+  actorId: string | null;
+  action: string;
+  entity: string;
+  entityId: string | null;
+  before: unknown;
+  after: unknown;
+  at: Date;
+}
+
+export function auditHash(r: HashInput) {
+  return createHash('sha256')
+    .update(canonical([r.prevHash, r.actorId, r.action, r.entity, r.entityId, r.before ?? null, r.after ?? null, r.at.toISOString()]))
+    .digest('hex');
+}
+
 export interface AuditEntry {
   action: string;
   entity: string;
@@ -44,9 +73,7 @@ export class AuditService {
     const after = scrub(entry.after) as Prisma.InputJsonValue | undefined;
     const at = new Date();
     const prevHash = last?.hash ?? null;
-    const hash = createHash('sha256')
-      .update(JSON.stringify([prevHash, actor?.id ?? null, entry.action, entry.entity, entry.entityId ?? null, before ?? null, after ?? null, at.toISOString()]))
-      .digest('hex');
+    const hash = auditHash({ prevHash, actorId: actor?.id ?? null, action: entry.action, entity: entry.entity, entityId: entry.entityId ?? null, before, after, at });
     await tx.auditLog.create({
       data: {
         actorId: actor?.id ?? null,
