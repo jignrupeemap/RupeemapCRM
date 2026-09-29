@@ -46,6 +46,15 @@ main table tbody tr {
     @apply bg-ink-400;
   }
 }
+/* Dashboard slider: fill of the active dot while a slide is shown. */
+@keyframes slide-progress {
+  from {
+    width: 0%;
+  }
+  to {
+    width: 100%;
+  }
+}
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }

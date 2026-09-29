@@ -1,9 +1,8 @@
 'use client';
 import useEmblaCarousel from 'embla-carousel-react';
-import Autoplay from 'embla-carousel-autoplay';
 import { ChevronLeft, ChevronRight, Megaphone, Percent, Sparkles, Landmark } from 'lucide-react';
 import Link from 'next/link';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { cx } from './ui';
 
 export interface Slide {
@@ -31,23 +30,58 @@ const KIND: Record<string, { label: string; icon: typeof Megaphone }> = {
   ANNOUNCEMENT: { label: 'Announcement', icon: Megaphone },
 };
 
-/** Admin-controlled hero. Tall on desktop, compact on phones. */
+/** Seconds each slide stays before gliding to the next. */
+const SLIDE_SECONDS = 5;
+// Stable options: a new object each render would restart the carousel. duration = slower, softer glide.
+const OPTIONS = { loop: true, duration: 42 } as const;
+
+/** Admin-controlled hero. Tall on desktop, compact on phones. Moves on its own; pauses while you hover or read. */
 export function HeroSlider({ slides }: { slides: Slide[] }) {
-  const [ref, embla] = useEmblaCarousel({ loop: true }, [Autoplay({ delay: 6000, stopOnInteraction: true, stopOnMouseEnter: true })]);
+  const [ref, embla] = useEmblaCarousel(OPTIONS);
   const [index, setIndex] = useState(0);
+  const [paused, setPaused] = useState(false);
+  const [hidden, setHidden] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
   useEffect(() => {
     if (!embla) return;
     const on = () => setIndex(embla.selectedScrollSnap());
     embla.on('select', on);
+    embla.on('reInit', on);
     return () => {
       embla.off('select', on);
+      embla.off('reInit', on);
     };
   }, [embla]);
+
+  // Pause while the browser tab is not visible, so it never jumps several slides at once.
+  useEffect(() => {
+    const onVis = () => setHidden(document.visibilityState === 'hidden');
+    document.addEventListener('visibilitychange', onVis);
+    return () => document.removeEventListener('visibilitychange', onVis);
+  }, []);
+
+  // One timer per slide: any change of slide (automatic or by click) starts a fresh wait.
+  useEffect(() => {
+    clearTimeout(timer.current);
+    if (!embla || slides.length < 2 || paused || hidden) return;
+    timer.current = setTimeout(() => embla.scrollNext(), SLIDE_SECONDS * 1000);
+    return () => clearTimeout(timer.current);
+  }, [embla, index, paused, hidden, slides.length]);
+
   const go = useCallback((i: number) => embla?.scrollTo(i), [embla]);
 
   if (!slides.length) return null;
   return (
-    <section className="relative overflow-hidden rounded-3xl" aria-roledescription="carousel" aria-label="Offers and announcements">
+    <section
+      className="relative overflow-hidden rounded-3xl"
+      aria-roledescription="carousel"
+      aria-label="Offers and announcements"
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
+      onFocus={() => setPaused(true)}
+      onBlur={() => setPaused(false)}
+    >
       <div ref={ref} className="overflow-hidden">
         <div className="flex">
           {slides.map((s, i) => {
@@ -57,7 +91,12 @@ export function HeroSlider({ slides }: { slides: Slide[] }) {
                 {s.mediaType === 'IMAGE' && s.mediaUrl && <img src={s.mediaUrl} alt="" className="absolute inset-0 h-full w-full object-cover opacity-40" loading={i ? 'lazy' : 'eager'} />}
                 {s.mediaType === 'VIDEO' && s.mediaUrl && <video src={s.mediaUrl} className="absolute inset-0 h-full w-full object-cover opacity-40" muted loop playsInline autoPlay preload="none" />}
                 <Decoration theme={s.theme} />
-                <div className="relative flex h-[210px] flex-col justify-end gap-3 p-6 sm:h-[260px] lg:h-[34vh] lg:min-h-[280px] lg:max-h-[380px] lg:p-10">
+                <div
+                  className={cx(
+                    'relative flex h-[210px] flex-col justify-end gap-3 p-6 transition-all duration-700 ease-out sm:h-[260px] lg:h-[34vh] lg:min-h-[280px] lg:max-h-[380px] lg:p-10',
+                    i === index ? 'translate-y-0 opacity-100' : 'translate-y-2 opacity-0',
+                  )}
+                >
                   <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-black/15 px-2.5 py-1 text-xs font-bold uppercase tracking-wide backdrop-blur">
                     <k.icon className="h-3.5 w-3.5" /> {k.label}
                   </span>
@@ -78,7 +117,21 @@ export function HeroSlider({ slides }: { slides: Slide[] }) {
         <div className="absolute bottom-4 right-4 flex items-center gap-2">
           <div className="hidden gap-1.5 sm:flex">
             {slides.map((s, i) => (
-              <button key={s.id} onClick={() => go(i)} aria-label={`Go to slide ${i + 1}`} className={cx('h-2 rounded-full bg-white transition-all', i === index ? 'w-6 opacity-100' : 'w-2 opacity-50')} />
+              <button
+                key={s.id}
+                onClick={() => go(i)}
+                aria-label={`Go to slide ${i + 1}`}
+                aria-current={i === index}
+                className={cx('relative h-2 overflow-hidden rounded-full bg-white/50 transition-all duration-500', i === index ? 'w-8' : 'w-2 hover:bg-white/80')}
+              >
+                {i === index && (
+                  <span
+                    key={index}
+                    className="absolute inset-y-0 left-0 rounded-full bg-white"
+                    style={{ animation: `slide-progress ${SLIDE_SECONDS}s linear forwards`, animationPlayState: paused || hidden ? 'paused' : 'running' }}
+                  />
+                )}
+              </button>
             ))}
           </div>
           <button onClick={() => embla?.scrollPrev()} className="rounded-full bg-black/20 p-2 text-white backdrop-blur hover:bg-black/30" aria-label="Previous slide">
