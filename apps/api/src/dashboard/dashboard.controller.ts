@@ -1,6 +1,7 @@
 import { Controller, Get, Query } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { z } from 'zod';
+import { STUCK_CASE_DAYS, STUCK_CASE_STATUSES } from '@rupeemap/shared';
 import { PrismaService } from '../common/prisma.service';
 import { ScopeService } from '../common/scope.service';
 import { InsuranceService } from '../insurance/insurance.service';
@@ -50,7 +51,7 @@ export class DashboardController {
       this.prisma.payout.groupBy({ by: ['status'], where: payoutWhere, _count: true, _sum: { amount: true } }),
       this.prisma.payout.aggregate({ where: { AND: [payoutWhere, { receivedFromBank: true }] }, _sum: { bankReceivedAmount: true }, _count: true }),
       this.prisma.loanCase.count({
-        where: { AND: [caseWhere, { status: { in: ['LOGIN', 'SANCTION', 'DISBURSED', 'QUERY'] } }, { statusChangedAt: { lt: new Date(Date.now() - 15 * 86_400_000) } }] },
+        where: { AND: [caseWhere, { status: { in: [...STUCK_CASE_STATUSES] } }, { statusChangedAt: { lt: new Date(Date.now() - STUCK_CASE_DAYS * 86_400_000) } }] },
       }),
       this.prisma.loanCase.groupBy({
         by: ['projectId'],

@@ -10,6 +10,8 @@ import {
   formatINR,
   type CaseAction,
   type CaseStatus,
+  STUCK_CASE_DAYS,
+  STUCK_CASE_STATUSES,
   type CreateCaseInput,
 } from '@rupeemap/shared';
 import { z } from 'zod';
@@ -194,6 +196,7 @@ export class CasesService {
     if (q.dsaId) and.push({ dsaId: q.dsaId });
     if (q.teamPartnerId) and.push({ teamPartnerId: q.teamPartnerId });
     if (q.from || q.to) and.push({ createdAt: { gte: q.from, lte: q.to ? endOfDay(q.to) : undefined } });
+    if (q.stuck) and.push({ status: { in: [...STUCK_CASE_STATUSES] }, statusChangedAt: { lt: new Date(Date.now() - STUCK_CASE_DAYS * 86_400_000) } });
     if (q.q) {
       const digits = q.q.replace(/\D/g, '');
       and.push({

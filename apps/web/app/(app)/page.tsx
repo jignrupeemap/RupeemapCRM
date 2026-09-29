@@ -15,9 +15,11 @@ import {
   ArrowUpRight,
   UserMinus,
   Upload,
+  ChevronRight,
 } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { ROLE_LABELS, type CaseStatus, type Permission } from '@rupeemap/shared';
 import { api } from '@/lib/api';
@@ -67,7 +69,28 @@ const QUICK: { href: string; label: string; icon: typeof Plus; perm?: Permission
 ];
 
 
+/** yyyy-mm-dd in the viewer's time zone. */
+const ymd = (iso: string) => {
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+/** All cases logged in one month (yyyy-mm). */
+function monthCases(m: string) {
+  const [y, mo] = m.split('-').map(Number);
+  const last = new Date(y, mo, 0).getDate();
+  return `/cases?from=${m}-01&to=${m}-${String(last).padStart(2, '0')}`;
+}
+/** Adds the dashboard's chosen dates to a link, so the page it opens shows the same count. */
+function withRange(url: string, range: { from?: string; to?: string }) {
+  const extra = new URLSearchParams();
+  if (range.from) extra.set('from', ymd(range.from));
+  if (range.to) extra.set('to', ymd(range.to));
+  const qs = extra.toString();
+  return qs ? `${url}${url.includes('?') ? '&' : '?'}${qs}` : url;
+}
+
 export default function DashboardPage() {
+  const router = useRouter();
   const { data: me } = useMe();
   const [range, setRange] = useState<RangeValue>(DEFAULT_RANGE);
   const params = rangeToParams(range);
@@ -156,20 +179,20 @@ export default function DashboardPage() {
         ) : (
           <>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8">
-              <Kpi label="Total cases" value={s.cases.total} sub={formatINRCompact(s.amounts.applied) + ' applied'} href="/cases" />
-              <Kpi label="Login" value={s.cases.LOGIN} href="/cases?status=LOGIN" />
-              <Kpi label="Sanction" value={s.cases.SANCTION} sub={`${s.conversion.sanction}% reached`} href="/cases?status=SANCTION" />
-              <Kpi label="Disbursed" value={s.cases.DISBURSED} sub={formatINRCompact(s.amounts.disbursed)} tone="teal" href="/cases?status=DISBURSED" />
-              <Kpi label="Handover" value={s.cases.HANDOVER} sub={formatINRCompact(s.amounts.handover)} tone="teal" href="/cases?status=HANDOVER" />
-              <Kpi label="Query" value={s.cases.QUERY} tone={s.cases.QUERY ? 'gold' : 'neutral'} href="/cases?status=QUERY" />
-              <Kpi label="Reject" value={s.cases.REJECT} tone={s.cases.REJECT ? 'red' : 'neutral'} href="/cases?status=REJECT" />
-              <Kpi label="Withdraw" value={s.cases.WITHDRAW} href="/cases?status=WITHDRAW" />
+              <Kpi label="Total cases" value={s.cases.total} sub={formatINRCompact(s.amounts.applied) + ' applied'} href={withRange('/cases', params)} />
+              <Kpi label="Login" value={s.cases.LOGIN} href={withRange('/cases?status=LOGIN', params)} />
+              <Kpi label="Sanction" value={s.cases.SANCTION} sub={`${s.conversion.sanction}% reached`} href={withRange('/cases?status=SANCTION', params)} />
+              <Kpi label="Disbursed" value={s.cases.DISBURSED} sub={formatINRCompact(s.amounts.disbursed)} tone="teal" href={withRange('/cases?status=DISBURSED', params)} />
+              <Kpi label="Handover" value={s.cases.HANDOVER} sub={formatINRCompact(s.amounts.handover)} tone="teal" href={withRange('/cases?status=HANDOVER', params)} />
+              <Kpi label="Query" value={s.cases.QUERY} tone={s.cases.QUERY ? 'gold' : 'neutral'} href={withRange('/cases?status=QUERY', params)} />
+              <Kpi label="Reject" value={s.cases.REJECT} tone={s.cases.REJECT ? 'red' : 'neutral'} href={withRange('/cases?status=REJECT', params)} />
+              <Kpi label="Withdraw" value={s.cases.WITHDRAW} href={withRange('/cases?status=WITHDRAW', params)} />
             </div>
             <div className={cx('grid grid-cols-2 gap-3 sm:grid-cols-4', s.insurance ? 'lg:grid-cols-6' : 'lg:grid-cols-5')}>
-              <Kpi label="Pending payout" value={formatINRCompact(s.payouts.PENDING.amount)} sub={`${s.payouts.PENDING.count} payouts`} tone="gold" href="/payouts?status=PENDING" />
-              <Kpi label="Confirmed" value={formatINRCompact(s.payouts.CONFIRMED.amount)} sub={`${s.payouts.CONFIRMED.count} payouts`} href="/payouts?status=CONFIRMED" />
-              <Kpi label="Paid" value={formatINRCompact(s.payouts.PAID.amount)} sub={`${s.payouts.PAID.count} payouts`} tone="teal" href="/payouts?status=PAID" />
-              <Kpi label="Hold" value={formatINRCompact(s.payouts.HOLD.amount)} sub={`${s.payouts.HOLD.count} payouts`} tone={s.payouts.HOLD.count ? 'red' : 'neutral'} href="/payouts?status=HOLD" />
+              <Kpi label="Pending payout" value={formatINRCompact(s.payouts.PENDING.amount)} sub={`${s.payouts.PENDING.count} payouts`} tone="gold" href={withRange('/payouts?status=PENDING', params)} />
+              <Kpi label="Confirmed" value={formatINRCompact(s.payouts.CONFIRMED.amount)} sub={`${s.payouts.CONFIRMED.count} payouts`} href={withRange('/payouts?status=CONFIRMED', params)} />
+              <Kpi label="Paid" value={formatINRCompact(s.payouts.PAID.amount)} sub={`${s.payouts.PAID.count} payouts`} tone="teal" href={withRange('/payouts?status=PAID', params)} />
+              <Kpi label="Hold" value={formatINRCompact(s.payouts.HOLD.amount)} sub={`${s.payouts.HOLD.count} payouts`} tone={s.payouts.HOLD.count ? 'red' : 'neutral'} href={withRange('/payouts?status=HOLD', params)} />
               <Kpi label="Recovery outstanding" value={formatINRCompact(s.recovery?.amount ?? 0)} sub={`${s.recovery?.count ?? 0} open`} tone={s.recovery?.amount ? 'red' : 'neutral'} href="/recovery" />
               {s.insurance && (
                 <Kpi label="Insurance payout (Rupeemap)" value={formatINRCompact(s.insurance.total)} sub={`${formatINRCompact(s.insurance.received)} received · ${s.insurance.policies} policies`} tone="teal" href="/insurance" />
@@ -188,26 +211,26 @@ export default function DashboardPage() {
 
       <div className="grid gap-6 lg:grid-cols-5">
         <Card className="p-5 lg:col-span-3">
-          <SectionTitle title="Logins and handovers" sub="Last 6 months, by month of login" />
-          {s ? <TrendChart data={s.trend} /> : <Skeleton className="h-56" />}
+          <SectionTitle title="Logins and handovers" sub="Last 6 months, by month of login. Click a month to see its cases." />
+          {s ? <TrendChart data={s.trend} onMonth={(m) => router.push(monthCases(m))} /> : <Skeleton className="h-56" />}
         </Card>
         <Card className="p-5 lg:col-span-2">
           <SectionTitle
             title="Needs attention"
             action={
-              <Link href="/cases?status=LOGIN,SANCTION,DISBURSED,QUERY" className="text-sm font-semibold text-teal-700">
+              <Link href={withRange('/cases?status=LOGIN,SANCTION,DISBURSED,QUERY', params)} className="text-sm font-semibold text-teal-700 hover:underline">
                 View cases
               </Link>
             }
           />
           {s ? (
             <ul className="space-y-3">
-              <AttentionRow icon={<AlarmClock className="h-4 w-4" />} tone="red" label="Cases stuck more than 15 days in one stage" value={s.stuckCases} />
-              <AttentionRow icon={<HelpCircle className="h-4 w-4" />} tone="gold" label="Cases in Query" value={s.cases.QUERY} />
-              <AttentionRow icon={<Wallet className="h-4 w-4" />} tone="gold" label="Payouts on Hold" value={s.payouts.HOLD.count} />
+              <AttentionRow href={withRange('/cases?stuck=1', params)} icon={<AlarmClock className="h-4 w-4" />} tone="red" label="Cases stuck more than 15 days in one stage" value={s.stuckCases} />
+              <AttentionRow href={withRange('/cases?status=QUERY', params)} icon={<HelpCircle className="h-4 w-4" />} tone="gold" label="Cases in Query" value={s.cases.QUERY} />
+              <AttentionRow href={withRange('/payouts?status=HOLD', params)} icon={<Wallet className="h-4 w-4" />} tone="gold" label="Payouts on Hold" value={s.payouts.HOLD.count} />
               {tickets.data && (
                 <li>
-                  <Link href={isStaff ? '/assistance' : '/queries'} className="-mx-2 flex items-center gap-3 rounded-xl px-2 py-1 hover:bg-ink-50">
+                  <Link href={isStaff ? '/assistance' : '/queries'} className="group -mx-2 flex items-center gap-3 rounded-xl px-2 py-1.5 transition hover:bg-teal-50/70">
                     <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-goldsoft text-amber-700">
                       <LifeBuoy className="h-4 w-4" />
                     </span>
@@ -215,21 +238,23 @@ export default function DashboardPage() {
                     <span className="font-display text-lg font-bold tabular-nums">
                       {isStaff ? tickets.data.QUERY.open + tickets.data.ASSISTANCE.open : tickets.data.QUERY.waiting + tickets.data.ASSISTANCE.waiting}
                     </span>
+                    <ChevronRight className="h-4 w-4 text-ink-300 transition group-hover:translate-x-0.5 group-hover:text-teal-600" aria-hidden />
                   </Link>
                 </li>
               )}
               {inactivity.data && (
                 <li>
-                  <Link href="/inactive-partners" className="-mx-2 flex items-center gap-3 rounded-xl px-2 py-1 hover:bg-ink-50">
+                  <Link href="/inactive-partners" className="group -mx-2 flex items-center gap-3 rounded-xl px-2 py-1.5 transition hover:bg-teal-50/70">
                     <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-redsoft text-red-700">
                       <UserMinus className="h-4 w-4" />
                     </span>
                     <span className="flex-1 text-sm text-ink-700">Partners with no business for 60+ days</span>
                     <span className="font-display text-lg font-bold tabular-nums">{inactivity.data.alert + inactivity.data.due}</span>
+                    <ChevronRight className="h-4 w-4 text-ink-300 transition group-hover:translate-x-0.5 group-hover:text-teal-600" aria-hidden />
                   </Link>
                 </li>
               )}
-              <AttentionRow icon={<Wallet className="h-4 w-4" />} tone="teal" label="Received from bank" value={`${s.bankReceived.count} · ${formatINRCompact(s.bankReceived.amount)}`} />
+              <AttentionRow href={withRange('/payouts?bankReceived=1', params)} icon={<Wallet className="h-4 w-4" />} tone="teal" label="Received from bank" value={`${s.bankReceived.count} · ${formatINRCompact(s.bankReceived.amount)}`} />
             </ul>
           ) : (
             <Skeleton className="h-40" />
@@ -240,7 +265,7 @@ export default function DashboardPage() {
       <div className="grid gap-6 lg:grid-cols-5">
         <Card className="lg:col-span-3">
           <div className="p-5 pb-2">
-            <SectionTitle title="Recent cases" action={<Link href="/cases" className="text-sm font-semibold text-teal-700">All cases</Link>} />
+            <SectionTitle title="Recent cases" action={<Link href={withRange('/cases', params)} className="text-sm font-semibold text-teal-700">All cases</Link>} />
           </div>
           {s && !s.recent.length ? (
             <EmptyState title="No cases yet" body="Add your first case to start tracking it from Login to Handover." action={me.permissions.includes('CASE_CREATE') && <Link href="/cases/new" className="font-semibold text-teal-700">Add New Case</Link>} />
@@ -275,7 +300,8 @@ export default function DashboardPage() {
           ) : (
             <ul className="space-y-1 px-5 pb-5">
               {(s?.projects ?? []).slice(0, 6).map((p, i, arr) => (
-                <li key={p.projectId} className="py-2">
+                <li key={p.projectId}>
+                  <Link href={withRange(`/cases?projectId=${p.projectId}`, params)} className="-mx-2 block rounded-xl px-2 py-2 transition hover:bg-teal-50/70">
                   <div className="flex items-baseline justify-between gap-2 text-sm">
                     <span className="truncate font-semibold">{p.name}</span>
                     <span className="shrink-0 tabular-nums text-ink-600">
@@ -288,6 +314,7 @@ export default function DashboardPage() {
                   <p className="mt-1 text-xs text-ink-500">
                     {p.city} · Handover {formatINRCompact(p.handoverAmount)}
                   </p>
+                  </Link>
                 </li>
               ))}
             </ul>
@@ -300,13 +327,16 @@ export default function DashboardPage() {
   );
 }
 
-function AttentionRow({ icon, label, value, tone }: { icon: React.ReactNode; label: string; value: React.ReactNode; tone: 'red' | 'gold' | 'teal' }) {
+function AttentionRow({ icon, label, value, tone, href }: { icon: React.ReactNode; label: string; value: React.ReactNode; tone: 'red' | 'gold' | 'teal'; href: string }) {
   const t = { red: 'bg-brand-redsoft text-red-700', gold: 'bg-brand-goldsoft text-amber-700', teal: 'bg-teal-50 text-teal-700' }[tone];
   return (
-    <li className="flex items-center gap-3">
-      <span className={cx('flex h-8 w-8 shrink-0 items-center justify-center rounded-lg', t)}>{icon}</span>
-      <span className="flex-1 text-sm text-ink-700">{label}</span>
-      <span className="font-display text-lg font-bold tabular-nums">{value}</span>
+    <li>
+      <Link href={href} className="group -mx-2 flex items-center gap-3 rounded-xl px-2 py-1.5 transition hover:bg-teal-50/70">
+        <span className={cx('flex h-8 w-8 shrink-0 items-center justify-center rounded-lg', t)}>{icon}</span>
+        <span className="flex-1 text-sm text-ink-700 group-hover:text-ink">{label}</span>
+        <span className="font-display text-lg font-bold tabular-nums">{value}</span>
+        <ChevronRight className="h-4 w-4 text-ink-300 transition group-hover:translate-x-0.5 group-hover:text-teal-600" aria-hidden />
+      </Link>
     </li>
   );
 }
@@ -320,9 +350,9 @@ function UsersOverview({ users, inactivity }: { users: { role: string; status: s
         <Kpi label="DSA Partners" value={count('DSA')} href="/users?role=DSA" />
         <Kpi label="Team Partners" value={count('TEAM_PARTNER')} href="/users?role=TEAM_PARTNER" />
         <Kpi label="Executives" value={count('EXECUTIVE')} href="/users?role=EXECUTIVE" />
-        <Kpi label="Active" value={count(undefined, 'ACTIVE')} tone="teal" />
-        <Kpi label="Blocked" value={count(undefined, 'BLOCKED')} tone={count(undefined, 'BLOCKED') ? 'red' : 'neutral'} />
-        <Kpi label="Suspended" value={count(undefined, 'SUSPENDED')} />
+        <Kpi label="Active" value={count(undefined, 'ACTIVE')} tone="teal" href="/users?status=ACTIVE" />
+        <Kpi label="Blocked" value={count(undefined, 'BLOCKED')} tone={count(undefined, 'BLOCKED') ? 'red' : 'neutral'} href="/users?status=BLOCKED" />
+        <Kpi label="Suspended" value={count(undefined, 'SUSPENDED')} href="/users?status=SUSPENDED" />
         {inactivity && (
           <>
             <Kpi label="Inactive 60+ days" value={inactivity.alert + inactivity.due} sub={`${inactivity.watch} more at 30+ days`} tone={inactivity.alert + inactivity.due ? 'gold' : 'neutral'} href="/inactive-partners" />

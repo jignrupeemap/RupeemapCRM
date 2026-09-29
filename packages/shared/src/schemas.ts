@@ -117,7 +117,13 @@ export const caseListQuerySchema = z.object({
   teamPartnerId: z.string().uuid().optional(),
   from: z.coerce.date().optional(),
   to: z.coerce.date().optional(),
+  /** "1" = open cases that have not moved stage for STUCK_CASE_DAYS or more (same rule as the dashboard). */
+  stuck: z.enum(['1']).optional(),
 });
+
+/** An open case counts as stuck after this many days in one stage. */
+export const STUCK_CASE_DAYS = 15;
+export const STUCK_CASE_STATUSES = ['LOGIN', 'SANCTION', 'DISBURSED', 'QUERY'] as const;
 
 export const projectSchema = z
   .object({

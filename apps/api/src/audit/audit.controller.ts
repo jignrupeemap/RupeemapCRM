@@ -80,7 +80,7 @@ export class AuditController {
         link = `/cases/${r.entityId}`;
       } else if (r.entity === 'user' && r.entityId && u.has(r.entityId)) {
         entityLabel = u.get(r.entityId)!.name;
-        link = `/users/${r.entityId}`;
+        link = `/users?q=${encodeURIComponent(u.get(r.entityId)!.mobile)}`;
       }
       return {
         id: r.id.toString(),

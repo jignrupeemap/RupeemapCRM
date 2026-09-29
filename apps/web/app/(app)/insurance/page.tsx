@@ -38,9 +38,11 @@ export default function InsurancePage() {
         <DateRangeFilter value={range} onChange={(v) => (setRange(v), setPage(1))} />
       </div>
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-        <Kpi label="Insurance payout" value={formatINRCompact(total)} sub={`${summary.reduce((a, s) => a + s.count, 0)} policies`} tone="teal" />
+        <button onClick={() => (setStatus(''), setPage(1))} className={cx('rounded-2xl text-left ring-2 transition', !status ? 'ring-teal-600' : 'ring-transparent')} aria-pressed={!status}>
+          <Kpi label="Insurance payout" value={formatINRCompact(total)} sub={`${summary.reduce((a, s) => a + s.count, 0)} policies · show all`} tone="teal" />
+        </button>
         {INSURANCE_PAYOUT_STATUSES.map((s) => (
-          <button key={s} onClick={() => (setStatus(status === s ? '' : s), setPage(1))} className={cx('rounded-2xl text-left ring-2 transition', status === s ? 'ring-ink' : 'ring-transparent')} aria-pressed={status === s}>
+          <button key={s} onClick={() => (setStatus(status === s ? '' : s), setPage(1))} className={cx('rounded-2xl text-left ring-2 transition', status === s ? 'ring-teal-600' : 'ring-transparent')} aria-pressed={status === s}>
             <Kpi label={INSURANCE_PAYOUT_LABELS[s]} value={formatINRCompact(sum(s).amount)} sub={`${sum(s).count} policies`} tone={s === 'RECEIVED' ? 'teal' : s === 'HOLD' ? 'red' : s === 'PENDING' ? 'gold' : 'neutral'} />
           </button>
         ))}

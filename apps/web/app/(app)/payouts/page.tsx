@@ -61,6 +61,7 @@ function Payouts() {
   const page = Number(params.get('page') ?? 1);
   const [beneficiaryId, setBeneficiaryId] = useState(params.get('beneficiaryId') ?? '');
   const [dsaId, setDsaId] = useState(params.get('dsaId') ?? '');
+  const [bankReceived, setBankReceived] = useState(params.get('bankReceived') === '1' ? '1' : '');
   const [range, setRange] = useState<RangeValue>(() => initialRange(params));
   const [editing, setEditing] = useState<{ p: PayoutRow; to: PayoutStatus } | null>(null);
   const [adjusting, setAdjusting] = useState<PayoutRow | null>(null);
@@ -68,8 +69,8 @@ function Payouts() {
   const [recovering, setRecovering] = useState<PayoutRow | null>(null);
   const dates = rangeToParams(range);
   const q = useQuery({
-    queryKey: ['payouts', status, page, beneficiaryId, dsaId, dates],
-    queryFn: () => api.page<PayoutRow>('/payouts', { status, page, pageSize: 20, beneficiaryId, dsaId, ...dates }),
+    queryKey: ['payouts', status, page, beneficiaryId, dsaId, bankReceived, dates],
+    queryFn: () => api.page<PayoutRow>('/payouts', { status, page, pageSize: 20, beneficiaryId, dsaId, bankReceived, ...dates }),
     placeholderData: keepPreviousData,
   });
   const people = useQuery({
@@ -125,11 +126,20 @@ function Payouts() {
         )}
         <DateRangeFilter value={range} onChange={setRange} />
       </div>
+      {bankReceived && (
+        <div className="mb-3">
+          <button onClick={() => setBankReceived('')} className="inline-flex items-center gap-1.5 rounded-full bg-teal-700 px-3 py-1.5 text-sm font-semibold text-white">
+            Received from bank <X className="h-3.5 w-3.5" aria-label="Remove filter" />
+          </button>
+        </div>
+      )}
 
       <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-5">
-        <Kpi label="Total payout" value={formatINRCompact(total)} sub={`${summary.reduce((a, s) => a + s.count, 0)} payouts`} />
+        <button onClick={() => go('')} className={cx('rounded-2xl text-left ring-2 transition', !status ? 'ring-teal-600' : 'ring-transparent')} aria-pressed={!status}>
+          <Kpi label="Total payout" value={formatINRCompact(total)} sub={`${summary.reduce((a, s) => a + s.count, 0)} payouts · show all`} />
+        </button>
         {PAYOUT_STATUSES.map((s) => (
-          <button key={s} onClick={() => go(status === s ? '' : s)} className={cx('rounded-2xl text-left ring-2 transition', status === s ? 'ring-ink' : 'ring-transparent')} aria-pressed={status === s}>
+          <button key={s} onClick={() => go(status === s ? '' : s)} className={cx('rounded-2xl text-left ring-2 transition', status === s ? 'ring-teal-600' : 'ring-transparent')} aria-pressed={status === s}>
             <Kpi label={PAYOUT_STATUS_LABELS[s]} value={formatINRCompact(sum(s).amount)} sub={`${sum(s).count} ${sum(s).count === 1 ? 'payout' : 'payouts'}`} tone={s === 'PAID' ? 'teal' : s === 'HOLD' ? 'red' : s === 'PENDING' ? 'gold' : 'neutral'} />
           </button>
         ))}

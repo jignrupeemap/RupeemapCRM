@@ -38,6 +38,10 @@ export function PartnerConsolidation({ params, overview }: { params: Record<stri
   const [hideEmpty, setHideEmpty] = useState(true);
   const data = useQuery({ queryKey: ['dashboard', 'partners', params], queryFn: () => api.get<Data>('/dashboard/partners', params), placeholderData: keepPreviousData });
   const d = data.data;
+  /** A page for one DSA and their team, keeping the dashboard's dates. */
+  const link = (path: string, extra: Record<string, string>) =>
+    `${path}?${new URLSearchParams(Object.entries({ ...extra, from: day(params.from), to: day(params.to) }).filter(([, v]) => v))}`;
+  const cell = (n: number, href: string) => (n ? <Link href={href} className="hover:text-teal-700 hover:underline">{n.toLocaleString('en-IN')}</Link> : '—');
   const rows = useMemo(() => {
     const term = q.trim().toLowerCase();
     return (d?.rows ?? []).filter(
@@ -95,35 +99,40 @@ export function PartnerConsolidation({ params, overview }: { params: Record<stri
                   {rows.map((r) => (
                     <tr key={r.dsaId} className="hover:bg-teal-50/40">
                       <td className="sticky left-0 bg-white px-3 py-2.5">
-                        <Link href={`/users/${r.dsaId}`} className="font-semibold text-ink hover:text-teal-700 hover:underline">
+                        <Link href={link('/cases', { dsaId: r.dsaId })} className="font-semibold text-ink hover:text-teal-700 hover:underline" title="Open all cases of this DSA and their team">
                           {r.name}
                         </Link>
                         <span className="block text-xs text-ink-500">
                           {[r.code, `${r.teamSize} Team Partner${r.teamSize === 1 ? '' : 's'}`, r.status && r.status !== 'ACTIVE' ? r.status.toLowerCase() : null].filter(Boolean).join(' · ')}
                         </span>
                       </td>
-                      <td className="px-3 py-2.5 text-right font-semibold tabular-nums">{num(r.cases.total)}</td>
+                      <td className="px-3 py-2.5 text-right font-semibold tabular-nums">{cell(r.cases.total, link('/cases', { dsaId: r.dsaId }))}</td>
                       <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums text-ink-600">
                         {r.cases.total ? `${r.cases.own} / ${r.cases.team}` : '—'}
                       </td>
-                      <td className="px-3 py-2.5 text-right tabular-nums">{num(r.cases.LOGIN)}</td>
-                      <td className="px-3 py-2.5 text-right tabular-nums">{num(r.cases.SANCTION)}</td>
-                      <td className="px-3 py-2.5 text-right tabular-nums">{num(r.cases.DISBURSED)}</td>
-                      <td className="px-3 py-2.5 text-right tabular-nums">{num(r.cases.HANDOVER)}</td>
+                      {(['LOGIN', 'SANCTION', 'DISBURSED', 'HANDOVER'] as const).map((st) => (
+                        <td key={st} className="px-3 py-2.5 text-right tabular-nums">
+                          {cell(r.cases[st], link('/cases', { dsaId: r.dsaId, status: st }))}
+                        </td>
+                      ))}
                       <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums">{money(r.amounts.handover)}</td>
                       <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums">{money(r.payouts.dsa)}</td>
                       <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums">{money(r.payouts.teamPartners)}</td>
                       <td className="whitespace-nowrap px-3 py-2.5 text-right font-semibold tabular-nums">
                         {r.payouts.total ? (
-                          <Link href={`/payouts?${new URLSearchParams(Object.entries({ dsaId: r.dsaId, from: day(params.from), to: day(params.to) }).filter(([, v]) => v))}`} className="text-teal-800 hover:underline">
+                          <Link href={link('/payouts', { dsaId: r.dsaId })} className="text-teal-800 hover:underline">
                             {money(r.payouts.total)}
                           </Link>
                         ) : (
                           '—'
                         )}
                       </td>
-                      <td className={cx('whitespace-nowrap px-3 py-2.5 text-right tabular-nums', r.payouts.pending ? 'text-amber-800' : '')}>{money(r.payouts.pending)}</td>
-                      <td className={cx('whitespace-nowrap px-3 py-2.5 text-right tabular-nums', r.payouts.paid ? 'text-emerald-700' : '')}>{money(r.payouts.paid)}</td>
+                      <td className={cx('whitespace-nowrap px-3 py-2.5 text-right tabular-nums', r.payouts.pending ? 'text-amber-800' : '')}>
+                        {r.payouts.pending ? <Link href={link('/payouts', { dsaId: r.dsaId, status: 'PENDING' })} className="hover:underline">{money(r.payouts.pending)}</Link> : '—'}
+                      </td>
+                      <td className={cx('whitespace-nowrap px-3 py-2.5 text-right tabular-nums', r.payouts.paid ? 'text-emerald-700' : '')}>
+                        {r.payouts.paid ? <Link href={link('/payouts', { dsaId: r.dsaId, status: 'PAID' })} className="hover:underline">{money(r.payouts.paid)}</Link> : '—'}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

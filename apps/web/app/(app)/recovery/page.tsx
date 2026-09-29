@@ -47,10 +47,18 @@ export default function RecoveryPage() {
         <DateRangeFilter value={range} onChange={setRange} />
       </div>
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Kpi label="Bank recovered" value={s ? formatINRCompact(s.bankRecovered) : '–'} />
-        <Kpi label="Demanded" value={s ? formatINRCompact(s.demanded) : '–'} tone="gold" />
-        <Kpi label="Received back" value={s ? formatINRCompact(s.received) : '–'} tone="teal" />
-        <Kpi label="Outstanding" value={s ? formatINRCompact(s.outstanding) : '–'} tone={s?.outstanding ? 'red' : 'neutral'} />
+        {(
+          [
+            ['all', 'Bank recovered', s?.bankRecovered, 'neutral'],
+            ['demand', 'Demanded', s?.demanded, 'gold'],
+            ['done', 'Received back', s?.received, 'teal'],
+            ['open', 'Outstanding', s?.outstanding, s?.outstanding ? 'red' : 'neutral'],
+          ] as const
+        ).map(([key, label, value, tone]) => (
+          <button key={key} onClick={() => setFilter(key)} className={cx('rounded-2xl text-left ring-2 transition', filter === key ? 'ring-teal-600' : 'ring-transparent')} aria-pressed={filter === key}>
+            <Kpi label={label} value={value === undefined ? '–' : formatINRCompact(value)} tone={tone} sub={`Show ${FILTERS.find((f) => f.key === key)!.label.toLowerCase()}`} />
+          </button>
+        ))}
       </div>
       <RecoveryList key={filter + JSON.stringify(dates)} status={status} dates={dates} />
     </div>

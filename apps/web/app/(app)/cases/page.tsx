@@ -4,7 +4,7 @@ import { MessageCircle, Phone, Plus, Search, SlidersHorizontal, Wallet, X } from
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
-import { CASE_STATUSES, CASE_STATUS_LABELS, type CaseStatus } from '@rupeemap/shared';
+import { CASE_STATUSES, CASE_STATUS_LABELS, STUCK_CASE_DAYS, type CaseStatus } from '@rupeemap/shared';
 import { api } from '@/lib/api';
 import { fmtDate, formatINR, loanTypeName } from '@/lib/format';
 import { useCan, useMe } from '@/lib/session';
@@ -90,6 +90,7 @@ function Cases() {
     dsaId: params.get('dsaId') ?? '',
     from: params.get('from') ?? '',
     to: params.get('to') ?? '',
+    stuck: params.get('stuck') === '1' ? '1' : '',
     page: Number(params.get('page') ?? 1),
   };
   const set = (patch: Partial<typeof filters>) => {
@@ -152,6 +153,11 @@ function Cases() {
         </div>
 
         <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 sm:mx-0 sm:flex-wrap sm:px-0" role="group" aria-label="Status">
+          {filters.stuck && (
+            <button onClick={() => set({ stuck: '' })} className="flex shrink-0 items-center gap-1.5 rounded-full bg-brand-red px-3 py-1.5 text-sm font-semibold text-white" title="Show all cases again">
+              Stuck {STUCK_CASE_DAYS}+ days in one stage <X className="h-3.5 w-3.5" aria-label="Remove filter" />
+            </button>
+          )}
           <button onClick={() => set({ status: '' })} className={cx('shrink-0 rounded-full px-3 py-1.5 text-sm font-semibold ring-1 ring-inset', !activeStatuses.length ? 'bg-teal-700 text-white ring-teal-700' : 'bg-white text-ink-600 ring-ink-200')}>
             All
           </button>

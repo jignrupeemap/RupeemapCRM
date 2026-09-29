@@ -38,20 +38,21 @@ const STATUS: Record<Person['status'], [string, 'teal' | 'gold' | 'red' | 'neutr
   DEACTIVATED: ['Deactivated · inactive', 'red'],
 };
 
-export function PeopleList({ role, title }: { role?: Role; title?: string }) {
+export function PeopleList({ role, title, initialStatus = '', initialQuery = '' }: { role?: Role; title?: string; initialStatus?: string; initialQuery?: string }) {
   const { data: me } = useMe();
   const can = useCan();
-  const [q, setQ] = useState('');
+  const [q, setQ] = useState(initialQuery);
   const [page, setPage] = useState(1);
   const [roleFilter, setRoleFilter] = useState<string>(role ?? '');
+  const [statusFilter, setStatusFilter] = useState<string>(initialStatus);
   const [adding, setAdding] = useState(false);
   const [range, setRange] = useState<RangeValue>(DEFAULT_RANGE);
   const dates = rangeToParams(range);
   const [action, setAction] = useState<{ p: Person; kind: 'rate' | 'status' | 'reset' | 'promote' | 'kyc' } | null>(null);
   const router = useRouter();
   const list = useQuery({
-    queryKey: ['users', roleFilter, q, page, dates],
-    queryFn: () => api.page<Person>('/users', { role: roleFilter, q, page, pageSize: 20, ...dates }),
+    queryKey: ['users', roleFilter, statusFilter, q, page, dates],
+    queryFn: () => api.page<Person>('/users', { role: roleFilter, status: statusFilter, q, page, pageSize: 20, ...dates }),
     placeholderData: keepPreviousData,
   });
   const isDsa = me?.role === 'DSA';
@@ -74,6 +75,14 @@ export function PeopleList({ role, title }: { role?: Role; title?: string }) {
             <option value="EXECUTIVE">Executives</option>
           </Select>
         )}
+        <Select value={statusFilter} onChange={(e) => (setStatusFilter(e.target.value), setPage(1))} aria-label="Account status" className="sm:max-w-[200px]">
+          <option value="">Any status</option>
+          {Object.entries(STATUS).map(([k, [label]]) => (
+            <option key={k} value={k}>
+              {label}
+            </option>
+          ))}
+        </Select>
         {canAdd && (
           <Button className="sm:ml-auto" icon={<Plus className="h-4 w-4" />} onClick={() => setAdding(true)}>
             {isDsa ? 'Add Team Partner' : 'Add user'}

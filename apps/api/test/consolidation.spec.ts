@@ -104,6 +104,20 @@ describe('Consolidated Admin figures', () => {
     }
   });
 
+  it('clicking a dashboard count opens a list with the same number', async () => {
+    const s = (await admin.get('/api/v1/dashboard/summary')).body.data;
+    const stuck = await admin.get('/api/v1/cases').query({ stuck: '1', pageSize: 1 });
+    expect(stuck.status).toBe(200);
+    expect(stuck.body.meta.total).toBe(s.stuckCases);
+    const query = await admin.get('/api/v1/cases').query({ status: 'QUERY', pageSize: 1 });
+    expect(query.body.meta.total).toBe(s.cases.QUERY);
+    const bank = await admin.get('/api/v1/payouts').query({ bankReceived: '1', pageSize: 1 });
+    expect(bank.body.meta.total).toBe(s.bankReceived.count);
+    const active = s.users.filter((u: any) => u.status === 'ACTIVE').reduce((a: number, u: any) => a + u.count, 0);
+    const users = await admin.get('/api/v1/users').query({ status: 'ACTIVE', pageSize: 1 });
+    expect(users.body.meta.total).toBe(active);
+  });
+
   it('partners cannot open the partner-wise table', async () => {
     expect((await dsa.get('/api/v1/dashboard/partners')).status).toBe(403);
   });
