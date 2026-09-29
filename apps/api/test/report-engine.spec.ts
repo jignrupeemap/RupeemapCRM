@@ -93,6 +93,27 @@ describe('Reports', () => {
     expect(lines.length - 1).toBe(byStatus.body.data.rowCount);
   });
 
+  it('clicking a bank (or DSA) in a report opens exactly the cases it counts', async () => {
+    for (const [who, key, nameKey] of [
+      [admin, 'banks', 'bank'],
+      [tp, 'banks', 'bank'],
+      [admin, 'dsa-performance', 'name'],
+    ] as const) {
+      const rep = await who.get(`/api/v1/reports/run/${key}`);
+      expect(rep.status).toBe(200);
+      for (const row of rep.body.data.rows) {
+        const link: string = row._links[nameKey];
+        expect(link).toMatch(/^\/cases\?/);
+        const list = await who.get(`/api/v1${link}`).query({ pageSize: 1 });
+        expect(list.body.meta.total, `${key} ${row[nameKey]}`).toBe(row.logins);
+        const handed = await who.get(`/api/v1${row._links.handovers}`).query({ pageSize: 1 });
+        expect(handed.body.meta.total).toBe(row.handovers);
+      }
+    }
+    const cases = await admin.get('/api/v1/reports/run/cases');
+    expect(cases.body.data.rows[0]._links.caseNo).toMatch(/^\/cases\/[0-9a-f-]{36}$/);
+  });
+
   it('every report runs for Admin without errors', async () => {
     for (const key of ['cases', 'dsa-performance', 'team-performance', 'banks', 'payouts', 'recovery', 'insurance', 'queries', 'executive-activity']) {
       const r = await admin.get(`/api/v1/reports/run/${key}`).query({ from: '2020-01-01' });

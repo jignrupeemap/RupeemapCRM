@@ -3,6 +3,7 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { BarChart3, FileDown, FileSpreadsheet, Printer, X } from 'lucide-react';
 import { CASE_STATUSES, CASE_STATUS_LABELS, PAYOUT_STATUSES, PAYOUT_STATUS_LABELS } from '@rupeemap/shared';
+import Link from 'next/link';
 import { useState } from 'react';
 import { api } from '@/lib/api';
 import { fmtDate, formatINR } from '@/lib/format';
@@ -33,6 +34,13 @@ function show(v: unknown, c: Col) {
   if (c.type === 'number') return Number(v).toLocaleString('en-IN');
   return String(v);
 }
+
+/** yyyy-mm-dd in the viewer's time zone (the format list pages read from links). */
+const ymd = (iso?: string) => {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
 
 export default function ReportsPage() {
   const { data: me } = useMe();
@@ -72,6 +80,24 @@ export default function ReportsPage() {
     partPayment: caseBased && partPayment ? '1' : '',
   };
   const active = [bankId, dsaId, teamPartnerId, loanType, projectId, filters.status, filters.partPayment].filter(Boolean).length;
+  /** A cell's link, keeping the report's dates and filters so the list shows the same cases. */
+  const cellHref = (href: string) => {
+    if (!href.startsWith('/cases?')) return href;
+    const u = new URLSearchParams(href.slice('/cases?'.length));
+    const keep: Record<string, string> = {
+      from: ymd(filters.from),
+      to: ymd(filters.to),
+      bankId,
+      dsaId,
+      teamPartnerId,
+      loanType,
+      projectId,
+      partPayment: filters.partPayment,
+      ...(caseBased ? { status: filters.status } : {}),
+    };
+    for (const [k, v] of Object.entries(keep)) if (v && !u.has(k)) u.set(k, v);
+    return `/cases?${u.toString()}`;
+  };
   const report = useQuery({
     queryKey: ['reports', 'run', key, filters],
     queryFn: () => api.get<Result>(`/reports/run/${key}`, filters),
@@ -219,7 +245,13 @@ export default function ReportsPage() {
                       <tr key={i} className="hover:bg-ink-50/60">
                         {r.columns.map((c) => (
                           <td key={c.key} className={cx('whitespace-nowrap px-3 py-2', ['money', 'number', 'percent'].includes(c.type ?? '') && 'text-right tabular-nums')}>
-                            {show(row[c.key], c)}
+                            {(row._links as Record<string, string> | undefined)?.[c.key] && row[c.key] !== 0 && row[c.key] !== '' ? (
+                              <Link href={cellHref((row._links as Record<string, string>)[c.key])} className="font-medium text-teal-800 underline-offset-2 hover:underline">
+                                {show(row[c.key], c)}
+                              </Link>
+                            ) : (
+                              show(row[c.key], c)
+                            )}
                           </td>
                         ))}
                       </tr>

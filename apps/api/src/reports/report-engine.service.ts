@@ -140,6 +140,7 @@ export class ReportEngine {
     const rows = await this.prisma.loanCase.findMany({
       where: this.caseWhere(user, f),
       select: {
+        id: true, bankId: true, projectId: true,
         caseNo: true, loanType: true, status: true, appliedAmount: true, sanctionAmount: true, disbursedTotal: true, handoverAmount: true, loanAccountNo: true, createdAt: true, statusChangedAt: true, dsaId: true, teamPartnerId: true,
         customer: { select: { name: true } }, bank: { select: { name: true } }, project: { select: { name: true } },
       },
@@ -148,6 +149,14 @@ export class ReportEngine {
     });
     const people = await this.names(rows.flatMap((r) => [r.dsaId, r.teamPartnerId]));
     const out = rows.slice(0, limit).map((r) => ({
+      _links: {
+        caseNo: `/cases/${r.id}`,
+        customer: `/cases/${r.id}`,
+        bank: `/cases?bankId=${r.bankId}`,
+        ...(r.projectId ? { project: `/cases?projectId=${r.projectId}` } : {}),
+        dsa: `/cases?dsaId=${r.dsaId}`,
+        ...(r.teamPartnerId ? { sourcedBy: `/cases?teamPartnerId=${r.teamPartnerId}` } : {}),
+      },
       caseNo: r.caseNo,
       customer: r.customer.name,
       loanType: r.loanType.replace(/_/g, ' ').toLowerCase().replace(/^\w/, (x) => x.toUpperCase()),
@@ -213,6 +222,7 @@ export class ReportEngine {
     const paid = (uid: string, role?: 'DSA' | 'TEAM_PARTNER') => paidMap.get(role ? `${uid}|${role}` : uid) ?? 0;
     const people = await this.names(rows.map((r) => r.uid));
     const out = rows.map((r) => ({
+      _links: stageLinks(`${by === 'DSA' ? 'dsaId' : 'teamPartnerId'}=${r.uid}`, 'name'),
       name: people.get(r.uid)?.name ?? '',
       code: people.get(r.uid)?.dsaProfile?.code ?? '',
       logins: r.logins,
@@ -253,7 +263,7 @@ export class ReportEngine {
   private async banks(user: AuthUser, f: ReportFilter): Promise<ReportResult> {
     const rows = await this.prisma.$queryRaw<any[]>`
       WITH c AS (SELECT c.* FROM loan_cases c WHERE ${this.caseSql(user, f)})
-      SELECT b.name,
+      SELECT b.id::text AS bank_id, b.name,
              count(c.id)::int AS logins,
              count(c.id) FILTER (WHERE c.status IN ('SANCTION','DISBURSED','HANDOVER'))::int AS sanctioned,
              count(c.id) FILTER (WHERE c.status = 'HANDOVER')::int AS handovers,
@@ -263,9 +273,10 @@ export class ReportEngine {
              round(avg(EXTRACT(EPOCH FROM (c.sanction_date - c.created_at)) / 86400)::numeric, 1) AS days_to_sanction,
              round(avg(EXTRACT(EPOCH FROM (c.handover_date - c.created_at)) / 86400)::numeric, 1) AS days_to_handover
       FROM c JOIN banks b ON b.id = c.bank_id
-      GROUP BY b.name
+      GROUP BY b.id, b.name
       ORDER BY logins DESC`;
     const out = rows.map((r) => ({
+      _links: stageLinks(`bankId=${r.bank_id}`, 'bank'),
       bank: r.name, logins: r.logins, sanctioned: r.sanctioned, handovers: r.handovers, rejected: r.rejected, conversion: pct(r.handovers, r.logins),
       applied: n(r.applied), sanctionedAmount: n(r.sanctioned_amt), disbursedAmount: n(r.disbursed_amt), handoverAmount: n(r.handover_amt),
       daysToSanction: r.days_to_sanction === null ? '' : Number(r.days_to_sanction), daysToHandover: r.days_to_handover === null ? '' : Number(r.days_to_handover),
@@ -297,12 +308,13 @@ export class ReportEngine {
           status ? { status: { in: status.split(',') as any } } : {},
         ],
       },
-      include: { loanCase: { select: { caseNo: true, loanAccountNo: true, customer: { select: { name: true } }, bank: { select: { name: true } } } } },
+      include: { loanCase: { select: { id: true, bankId: true, caseNo: true, loanAccountNo: true, customer: { select: { name: true } }, bank: { select: { name: true } } } } },
       orderBy: { createdAt: 'desc' },
       take: MAX_ROWS,
     });
     const people = await this.names(rows.map((r) => r.beneficiaryId));
     const out = rows.map((r) => ({
+      _links: { caseNo: `/cases/${r.loanCase.id}`, customer: `/cases/${r.loanCase.id}`, bank: `/cases?bankId=${r.loanCase.bankId}` },
       caseNo: r.loanCase.caseNo, customer: r.loanCase.customer.name, bank: r.loanCase.bank.name, loanAccount: r.loanCase.loanAccountNo ?? '',
       partner: people.get(r.beneficiaryId)?.name ?? '', role: ROLE_LABELS[r.beneficiaryRole as Role], handover: n(r.baseAmount), percent: n(r.percentSnapshot), amount: n(r.amount),
       status: PAYOUT_STATUS_LABELS[r.status as keyof typeof PAYOUT_STATUS_LABELS], receivedFromBank: r.receivedFromBank ? 'Yes' : 'No', paidOn: r.paidOn, reference: r.paymentRef ?? '', createdAt: r.createdAt,
@@ -428,6 +440,22 @@ export class ReportEngine {
       rows: rows.map((r) => ({ ...r, role: ROLE_LABELS[r.role as Role], lastLogin: r.last_login, last_login: undefined })),
     };
   }
+}
+
+/**
+ * Where each cell of a summary row leads: the name opens all its cases, and each count
+ * opens the cases behind that count. The Reports page adds the chosen dates and filters.
+ */
+function stageLinks(q: string, nameKey: string): Record<string, string> {
+  return {
+    [nameKey]: `/cases?${q}`,
+    logins: `/cases?${q}`,
+    sanctioned: `/cases?${q}&status=SANCTION,DISBURSED,HANDOVER`,
+    disbursed: `/cases?${q}&status=DISBURSED,HANDOVER`,
+    handovers: `/cases?${q}&status=HANDOVER`,
+    rejected: `/cases?${q}&status=REJECT`,
+    dropped: `/cases?${q}&status=REJECT,WITHDRAW`,
+  };
 }
 
 function sum(rows: Record<string, unknown>[], key: string) {
