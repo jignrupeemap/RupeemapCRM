@@ -160,6 +160,7 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<Role, Permission[]> = {
     'USER_VIEW',
     'USER_RESET_PASSWORD',
     'PAYOUT_PERCENTAGE_UPDATE_TEAM',
+    'REPORT_EXPORT', // own team's data only, like every report
   ],
   TEAM_PARTNER: PARTNER_COMMON,
 };

@@ -17,6 +17,7 @@ import { HealthController } from './health/health.controller';
 import { InactivityController } from './inactivity/inactivity.controller';
 import { InactivityService } from './inactivity/inactivity.service';
 import { ReportsController } from './reports/reports.controller';
+import { ReportEngine } from './reports/report-engine.service';
 import { ChecklistsController } from './checklists/checklists.controller';
 import { ChecklistsService } from './checklists/checklists.service';
 import { KycController } from './kyc/kyc.controller';
@@ -63,6 +64,7 @@ import { RecoveryService } from './recovery/recovery.service';
     InsuranceService,
     RecoveryService,
     TicketsService,
+    ReportEngine,
     { provide: APP_GUARD, useClass: AuthGuard },
     { provide: APP_INTERCEPTOR, useClass: EnvelopeInterceptor },
     { provide: APP_FILTER, useClass: GlobalExceptionFilter },

@@ -27,3 +27,25 @@ body {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Print / Save as PDF: just the page content, no menus. */
+@media print {
+  aside,
+  header,
+  nav[aria-label='Quick'] {
+    display: none !important;
+  }
+  body {
+    background: #fff;
+  }
+  .lg\:pl-64 {
+    padding-left: 0 !important;
+  }
+  main {
+    max-width: none !important;
+    padding: 0 !important;
+  }
+  table {
+    font-size: 10px;
+  }
+}

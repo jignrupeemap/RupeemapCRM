@@ -1,10 +1,15 @@
-import { Controller, Get, Param, ParseUUIDPipe, Query } from '@nestjs/common';
+import { Controller, Get, Param, ParseUUIDPipe, Query, Res } from '@nestjs/common';
+import type { Response } from 'express';
 import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { PrismaService } from '../common/prisma.service';
 import { ScopeService } from '../common/scope.service';
 import { parse } from '../common/validate';
-import { CurrentUser, RequirePermission, type AuthUser } from '../common/auth-context';
+import { can, CurrentUser, Meta, RequirePermission, type AuthUser, type RequestMeta } from '../common/auth-context';
+import { AuditService } from '../common/audit.service';
+import { RedisService } from '../common/redis.service';
+import { REPORTS, ReportEngine, canRun, reportFilterSchema } from './report-engine.service';
+import { toCsv, toXlsx } from './export';
 import { forbidden, notFound } from '../common/errors';
 
 const SORTS = {
@@ -44,7 +49,44 @@ export class ReportsController {
   constructor(
     private readonly prisma: PrismaService,
     private readonly scope: ScopeService,
+    private readonly engine: ReportEngine,
+    private readonly audit: AuditService,
+    private readonly redis: RedisService,
   ) {}
+
+  /** Reports this person may open. */
+  @Get()
+  @RequirePermission('REPORT_VIEW')
+  available(@CurrentUser() user: AuthUser) {
+    return REPORTS.filter((r) => canRun(user, r.key)).map((r) => ({ key: r.key, label: r.label, canExport: can(user, 'REPORT_EXPORT') }));
+  }
+
+  @Get('run/:key')
+  @RequirePermission('REPORT_VIEW')
+  async run(@CurrentUser() user: AuthUser, @Param('key') key: string, @Query() q: unknown) {
+    const r = await this.engine.run(user, key, parse(reportFilterSchema, q));
+    // The screen shows the first 500 rows; exports carry them all.
+    return { ...r, rowCount: r.rows.length, rows: r.rows.slice(0, 500) };
+  }
+
+  /** CSV or Excel of exactly what the report shows, limited to the caller's scope. Every export is audited. */
+  @Get('run/:key/export')
+  @RequirePermission('REPORT_EXPORT')
+  async export(@CurrentUser() user: AuthUser, @Param('key') key: string, @Query() q: Record<string, string>, @Meta() meta: RequestMeta, @Res() res: Response) {
+    await this.redis.limit(`export:${user.id}`, 30, 3600, 'Too many exports in a short time. Please try again later.');
+    const format = q.format === 'csv' ? 'csv' : 'xlsx';
+    const filters = parse(reportFilterSchema, q);
+    const r = await this.engine.run(user, key, filters);
+    const body = format === 'csv' ? toCsv(r) : toXlsx(r);
+    await this.prisma.$transaction((tx) => this.audit.log(tx, user, { action: 'REPORT_EXPORTED', entity: 'report', entityId: key, after: { format, rows: r.rows.length, filters } }, meta));
+    const stamp = new Date().toISOString().slice(0, 10);
+    res.set({
+      'Content-Type': format === 'csv' ? 'text/csv; charset=utf-8' : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Content-Disposition': `attachment; filename="rupeemap-${key}-${stamp}.${format}"`,
+      'Cache-Control': 'private, no-store',
+    });
+    res.end(body);
+  }
 
   /**
    * Admin only (Rupeemap's request): the top 5 partners who sourced cases in one

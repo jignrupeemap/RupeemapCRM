@@ -2,6 +2,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft,
+  BarChart3,
   Bell,
   BookUser,
   Building2,
@@ -54,6 +55,7 @@ export const NAV: { group: string; items: NavItem[] }[] = [
       { href: '/kyc', label: 'First Payout KYC', icon: ShieldCheck, perm: 'KYC_VIEW', roles: ['ADMIN', 'EXECUTIVE'] },
       { href: '/payouts', label: 'Payout', icon: Wallet, perm: 'PAYOUT_VIEW' },
       { href: '/recovery', label: 'Recovery', icon: Undo2, perm: 'RECOVERY_VIEW' },
+      { href: '/reports', label: 'Reports', icon: BarChart3, perm: 'REPORT_VIEW' },
       { href: '/insurance', label: 'Insurance', icon: ShieldPlus, perm: 'INSURANCE_UPDATE', roles: ['ADMIN', 'EXECUTIVE'] },
     ],
   },
