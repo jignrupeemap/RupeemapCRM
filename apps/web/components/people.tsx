@@ -11,6 +11,7 @@ import { api, ApiError } from '@/lib/api';
 import { fmtDate, formatINRCompact, initials } from '@/lib/format';
 import { useCan, useMe } from '@/lib/session';
 import { Badge, Button, Card, cx, EmptyState, ErrorState, Field, Input, Modal, Pagination, Select, Skeleton, Textarea } from './ui';
+import { DateRangeFilter, DEFAULT_RANGE, rangeToParams, type RangeValue } from './date-range';
 
 export interface Person {
   id: string;
@@ -26,6 +27,7 @@ export interface Person {
   kycStatus: string | null;
   payoutPercent: number | null;
   stats: { total: number; login: number; sanction: number; disbursed: number; handover: number; query: number; reject: number; withdraw: number; handoverAmount: number };
+  payout: { amount: number; paid: number; count: number };
 }
 
 const STATUS: Record<Person['status'], [string, 'teal' | 'gold' | 'red' | 'neutral']> = {
@@ -43,18 +45,25 @@ export function PeopleList({ role, title }: { role?: Role; title?: string }) {
   const [page, setPage] = useState(1);
   const [roleFilter, setRoleFilter] = useState<string>(role ?? '');
   const [adding, setAdding] = useState(false);
+  const [range, setRange] = useState<RangeValue>(DEFAULT_RANGE);
+  const dates = rangeToParams(range);
   const [action, setAction] = useState<{ p: Person; kind: 'rate' | 'status' | 'reset' | 'promote' | 'kyc' } | null>(null);
   const router = useRouter();
   const list = useQuery({
-    queryKey: ['users', roleFilter, q, page],
-    queryFn: () => api.page<Person>('/users', { role: roleFilter, q, page, pageSize: 20 }),
+    queryKey: ['users', roleFilter, q, page, dates],
+    queryFn: () => api.page<Person>('/users', { role: roleFilter, q, page, pageSize: 20, ...dates }),
     placeholderData: keepPreviousData,
   });
   const isDsa = me?.role === 'DSA';
+  const canSetRate = (p: Person) => (p.role === 'DSA' ? can('PAYOUT_PERCENTAGE_UPDATE_DSA') : p.role === 'TEAM_PARTNER' && can('PAYOUT_PERCENTAGE_UPDATE_TEAM'));
   const canAdd = can('USER_CREATE_TEAM_PARTNER') || can('USER_CREATE_DSA') || can('USER_CREATE_EXECUTIVE');
 
   return (
     <div className="space-y-3">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <p className="pt-2 text-sm text-ink-500">Cases and payouts below are for the period you choose.</p>
+        <DateRangeFilter value={range} onChange={(v) => (setRange(v), setPage(1))} />
+      </div>
       <div className="flex flex-col gap-2 sm:flex-row">
         <Input placeholder="Search name or mobile" value={q} onChange={(e) => (setQ(e.target.value), setPage(1))} aria-label="Search people" className="sm:max-w-xs" />
         {!role && (
@@ -86,7 +95,7 @@ export function PeopleList({ role, title }: { role?: Role; title?: string }) {
         <>
           <Card className="overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[760px] text-sm">
+              <table className="w-full min-w-[860px] text-sm">
                 <thead className="bg-ink-50 text-left text-xs font-semibold uppercase tracking-wide text-ink-500">
                   <tr>
                     <th className="px-4 py-3">{title ?? 'Name'}</th>
@@ -96,6 +105,7 @@ export function PeopleList({ role, title }: { role?: Role; title?: string }) {
                     <th className="px-4 py-3 text-right">Disbursed</th>
                     <th className="px-4 py-3 text-right">Handover</th>
                     <th className="px-4 py-3 text-right">Payout %</th>
+                    <th className="px-4 py-3 text-right">Payout</th>
                     <th className="px-4 py-3">Status</th>
                     <th className="px-2 py-3" />
                   </tr>
@@ -127,7 +137,29 @@ export function PeopleList({ role, title }: { role?: Role; title?: string }) {
                         {p.stats.handover}
                         {p.stats.handoverAmount > 0 && <span className="block text-xs text-ink-500">{formatINRCompact(p.stats.handoverAmount)}</span>}
                       </td>
-                      <td className="px-4 py-3 text-right tabular-nums">{p.role === 'EXECUTIVE' || p.role === 'ADMIN' ? '—' : p.payoutPercent !== null ? `${p.payoutPercent}%` : <span className="text-brand-red">Not set</span>}</td>
+                      <td className="px-4 py-3 text-right tabular-nums">
+                        {p.role === 'EXECUTIVE' || p.role === 'ADMIN' ? (
+                          '—'
+                        ) : canSetRate(p) ? (
+                          <button onClick={() => setAction({ p, kind: 'rate' })} className={cx('rounded-lg px-2 py-1 font-semibold hover:bg-ink-100', p.payoutPercent === null && 'bg-brand-redsoft text-red-800')} title="Set the fixed payout % used on every case">
+                            {p.payoutPercent !== null ? `${p.payoutPercent}%` : 'Set %'}
+                          </button>
+                        ) : p.payoutPercent !== null ? (
+                          `${p.payoutPercent}%`
+                        ) : (
+                          <span className="text-brand-red">Not set</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-right tabular-nums">
+                        {p.role === 'EXECUTIVE' || p.role === 'ADMIN' ? (
+                          '—'
+                        ) : (
+                          <Link href={`/payouts?${new URLSearchParams({ beneficiaryId: p.id, ...(dates.from ? { from: dates.from } : {}), ...(dates.to ? { to: dates.to } : {}) })}`} className="font-semibold hover:underline">
+                            {formatINRCompact(p.payout.amount)}
+                            {p.payout.paid > 0 && <span className="block text-xs font-normal text-ink-500">{formatINRCompact(p.payout.paid)} paid</span>}
+                          </Link>
+                        )}
+                      </td>
                       <td className="px-4 py-3">
                         <div className="flex flex-col items-start gap-1">
                           <Badge tone={STATUS[p.status][1]}>{STATUS[p.status][0]}</Badge>

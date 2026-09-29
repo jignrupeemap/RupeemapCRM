@@ -205,6 +205,34 @@ describe('Loan case lifecycle', () => {
     }
   });
 
+  it('DSA can change a Team Partner’s payout on one case, within their own %, and it is audited', async () => {
+    const list = (await dsa.get('/api/v1/payouts')).body.data;
+    const tpLine = list.find((x: any) => x.beneficiaryId === tpId);
+    const ownLine = list.find((x: any) => x.beneficiaryId === dsaId);
+    expect(tpLine.canAdjust).toBe(true);
+    expect(ownLine.canAdjust).toBe(false);
+    // Not their own line, not above their own 1%, and never by the Team Partner.
+    expect((await dsa.patch(`/api/v1/payouts/${ownLine.id}/amount`).set(H).send({ version: ownLine.version, percent: 2, reason: 'raise mine' })).status).toBe(403);
+    const over = await dsa.patch(`/api/v1/payouts/${tpLine.id}/amount`).set(H).send({ version: tpLine.version, percent: 1.5, reason: 'too much' });
+    expect(over.body.code).toBe('VALIDATION_ERROR');
+    const tpTry = await tp.patch(`/api/v1/payouts/${tpLine.id}/amount`).set(H).send({ version: tpLine.version, percent: 0.9, reason: 'give me more' });
+    expect(tpTry.status, JSON.stringify(tpTry.body)).toBe(403);
+
+    const byAmount = await dsa.patch(`/api/v1/payouts/${tpLine.id}/amount`).set(H).send({ version: tpLine.version, amount: 29400, reason: 'Special case, customer referred by Ravi' });
+    expect(byAmount.status, JSON.stringify(byAmount.body)).toBe(200);
+    expect(Number(byAmount.body.data.percentSnapshot)).toBe(0.7);
+    const hist = await prisma.payoutHistory.findFirst({ where: { payoutId: tpLine.id }, orderBy: { changedAt: 'desc' } });
+    expect(Number(hist!.prevAmount)).toBe(25200);
+    expect(Number(hist!.newAmount)).toBe(29400);
+    expect(await prisma.auditLog.count({ where: { action: 'PAYOUT_ADJUSTED', entityId: tpLine.id } })).toBe(1);
+
+    // Executive sets it back by percentage.
+    exec = await login('9000000002');
+    const back = await exec.patch(`/api/v1/payouts/${tpLine.id}/amount`).set(H).send({ version: byAmount.body.data.version, percent: 0.6, reason: 'Back to standard rate' });
+    expect(back.status, JSON.stringify(back.body)).toBe(200);
+    expect(Number(back.body.data.amount)).toBe(25200);
+  });
+
   it('first payout KYC blocks Paid until Admin approves', async () => {
     exec = await login('9000000002');
     const list = await exec.get('/api/v1/payouts').query({ beneficiaryId: dsaId });

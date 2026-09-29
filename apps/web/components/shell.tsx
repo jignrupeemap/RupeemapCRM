@@ -1,6 +1,7 @@
 'use client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  ArrowLeft,
   Bell,
   BookUser,
   Building2,
@@ -245,7 +246,16 @@ export function AppShell({ children }: { children: ReactNode }) {
       {/* Header */}
       <header className="sticky top-0 z-20 border-b border-ink-200/80 bg-white/90 pt-[env(safe-area-inset-top)] backdrop-blur">
         <div className="flex h-16 items-center gap-3 px-4 lg:px-8">
-          <div className="lg:hidden">
+          {pathname !== '/' && (
+            <button
+              onClick={() => (window.history.length > 1 ? router.back() : router.push('/'))}
+              className="flex h-10 shrink-0 items-center gap-1.5 rounded-xl px-2.5 text-sm font-semibold text-ink-700 ring-1 ring-inset ring-ink-200 hover:bg-ink-100"
+              aria-label="Go back"
+            >
+              <ArrowLeft className="h-4 w-4" /> <span className="hidden sm:inline">Back</span>
+            </button>
+          )}
+          <div className={cx('lg:hidden', pathname !== '/' && 'hidden sm:block')}>
             <Logo compact />
           </div>
           <GlobalSearch />

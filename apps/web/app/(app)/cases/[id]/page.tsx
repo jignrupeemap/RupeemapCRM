@@ -22,6 +22,7 @@ import { useMe } from '@/lib/session';
 import { PageHeader } from '@/components/shell';
 import { CaseActionBar } from '@/components/case-actions';
 import { CaseChecklistTab } from '@/components/checklist';
+import { PayoutAdjustModal } from '@/components/payout-adjust';
 import { Badge, Banner, Button, Card, cx, DetailGrid, EmptyState, ErrorState, Field, Input, Modal, PayoutChip, Select, Skeleton, StatusChip, Tab, TabList, TabPanel, Tabs, Textarea } from '@/components/ui';
 
 interface CaseDetail {
@@ -71,6 +72,8 @@ interface CaseDetail {
     paymentRef: string | null;
     remarks: string | null;
     kycStatus: string | null;
+    version: number;
+    canAdjust: boolean;
     history: { id: string; prevStatus: PayoutStatus | null; newStatus: PayoutStatus | null; prevAmount: string | null; newAmount: string | null; reason: string; changedByName: string; changedAt: string }[];
   }[];
   allowedActions: CaseAction[];
@@ -482,6 +485,7 @@ function RemarksTab({ c, disabled }: { c: CaseDetail; disabled: boolean }) {
 }
 
 function PayoutTab({ c }: { c: CaseDetail }) {
+  const [adjusting, setAdjusting] = useState<CaseDetail['payouts'][number] | null>(null);
   if (!c.payouts.length)
     return (
       <Card>
@@ -505,6 +509,11 @@ function PayoutTab({ c }: { c: CaseDetail }) {
             <div className="flex flex-col items-end gap-1.5">
               <PayoutChip status={p.status} />
               {p.receivedFromBank && <Badge tone="teal">Received from bank</Badge>}
+              {p.canAdjust && (
+                <Button size="sm" variant="secondary" icon={<PencilLine className="h-3.5 w-3.5" />} onClick={() => setAdjusting(p)}>
+                  Change % / amount
+                </Button>
+              )}
             </div>
           </div>
           {p.kycStatus !== 'APPROVED' && p.status !== 'PAID' && (
@@ -530,6 +539,7 @@ function PayoutTab({ c }: { c: CaseDetail }) {
         </Card>
       ))}
       <p className="text-xs text-ink-500">Payout status can only be changed by Rupeemap Admin or authorised executives, from the Payout screen.</p>
+      {adjusting && <PayoutAdjustModal p={{ ...adjusting, caseNo: c.caseNo }} onClose={() => setAdjusting(null)} />}
     </div>
   );
 }

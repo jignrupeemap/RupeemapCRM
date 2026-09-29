@@ -1,5 +1,6 @@
 'use client';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Pencil, X } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useRef, useState } from 'react';
@@ -7,9 +8,11 @@ import { toast } from 'sonner';
 import { PAYOUT_STATUSES, PAYOUT_STATUS_LABELS, PAYOUT_TRANSITIONS, ROLE_LABELS, type PayoutStatus, type Role } from '@rupeemap/shared';
 import { api, ApiError, newIdempotencyKey } from '@/lib/api';
 import { fmtDate, formatINR, formatINRCompact, loanTypeName } from '@/lib/format';
-import { useCan } from '@/lib/session';
+import { useCan, useMe } from '@/lib/session';
 import { PageHeader } from '@/components/shell';
-import { Badge, Button, Card, cx, EmptyState, ErrorState, Field, Input, Kpi, Modal, Pagination, PayoutChip, Skeleton, Textarea } from '@/components/ui';
+import { DateRangeFilter, DEFAULT_RANGE, rangeToParams, type RangeValue } from '@/components/date-range';
+import { PayoutAdjustModal } from '@/components/payout-adjust';
+import { Badge, Button, Card, cx, EmptyState, ErrorState, Field, Input, Kpi, Modal, Pagination, PayoutChip, Select, Skeleton, Textarea } from '@/components/ui';
 
 interface PayoutRow {
   id: string;
@@ -27,6 +30,7 @@ interface PayoutRow {
   paymentRef: string | null;
   paidOn: string | null;
   createdAt: string;
+  canAdjust: boolean;
   loanCase: { id: string; caseNo: string; loanType: string; loanAccountNo: string | null; handoverDate: string | null; customer: { name: string }; bank: { name: string } };
 }
 
@@ -38,25 +42,84 @@ export default function PayoutsPage() {
   );
 }
 
+/** A range from the URL (yyyy-mm-dd), so links from All Cases and Team Data keep their dates. */
+function initialRange(params: URLSearchParams): RangeValue {
+  const from = params.get('from') ?? '';
+  const to = params.get('to') ?? '';
+  return from || to ? { key: 'custom', from: from.slice(0, 10), to: to.slice(0, 10) } : DEFAULT_RANGE;
+}
+
 function Payouts() {
   const params = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
   const can = useCan();
+  const { data: me } = useMe();
   const status = params.get('status') ?? '';
   const page = Number(params.get('page') ?? 1);
+  const [beneficiaryId, setBeneficiaryId] = useState(params.get('beneficiaryId') ?? '');
+  const [range, setRange] = useState<RangeValue>(() => initialRange(params));
   const [editing, setEditing] = useState<{ p: PayoutRow; to: PayoutStatus } | null>(null);
+  const [adjusting, setAdjusting] = useState<PayoutRow | null>(null);
   const [receipt, setReceipt] = useState<PayoutRow | null>(null);
-  const q = useQuery({ queryKey: ['payouts', status, page], queryFn: () => api.page<PayoutRow>('/payouts', { status, page, pageSize: 20 }), placeholderData: keepPreviousData });
+  const dates = rangeToParams(range);
+  const q = useQuery({
+    queryKey: ['payouts', status, page, beneficiaryId, dates],
+    queryFn: () => api.page<PayoutRow>('/payouts', { status, page, pageSize: 20, beneficiaryId, ...dates }),
+    placeholderData: keepPreviousData,
+  });
+  const people = useQuery({
+    queryKey: ['payout-people', me?.role],
+    queryFn: () => api.page<{ id: string; name: string; role: Role }>('/users', me?.role === 'DSA' ? { role: 'TEAM_PARTNER', pageSize: 100 } : { pageSize: 100 }),
+    enabled: me?.role === 'DSA' || can('USER_VIEW'),
+    staleTime: 300_000,
+  });
   const summary: { status: PayoutStatus; count: number; amount: number }[] = q.data?.meta.summary ?? [];
   const sum = (s: PayoutStatus) => summary.find((x) => x.status === s) ?? { count: 0, amount: 0 };
+  const total = summary.reduce((a, s) => a + s.amount, 0);
   const manage = can('PAYOUT_UPDATE');
   const go = (s: string) => router.replace(`${pathname}${s ? `?status=${s}` : ''}`, { scroll: false });
+  const choices = (people.data?.data ?? []).filter((u) => u.role === 'DSA' || u.role === 'TEAM_PARTNER');
+  const who = choices.find((u) => u.id === beneficiaryId)?.name;
 
   return (
     <div>
-      <PageHeader title="Payout" sub={manage ? 'Confirm, hold and release partner payouts. First payout needs approved KYC.' : 'Payouts are created automatically at Handover. Only Rupeemap can change their status.'} />
-      <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <PageHeader
+        title={who ? `Payout · ${who}` : 'Payout'}
+        sub={
+          manage
+            ? 'Confirm, hold and release partner payouts. First payout needs approved KYC.'
+            : me?.role === 'DSA'
+              ? 'Your and your team’s payouts. You can change a Team Partner’s payout on a single case.'
+              : 'Payouts are created automatically at Handover. Only Rupeemap can change their status.'
+        }
+      />
+
+      <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        {choices.length > 0 ? (
+          <div className="flex items-center gap-2">
+            <Select aria-label="Partner" value={beneficiaryId} onChange={(e) => setBeneficiaryId(e.target.value)} className="sm:w-64">
+              <option value="">{me?.role === 'DSA' ? 'Me and all Team Partners' : 'All partners'}</option>
+              {choices.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.name} ({u.role === 'DSA' ? 'DSA' : 'Team Partner'})
+                </option>
+              ))}
+            </Select>
+            {beneficiaryId && (
+              <button className="rounded-lg p-2 text-ink-500 hover:bg-ink-100" aria-label="Show everyone" onClick={() => setBeneficiaryId('')}>
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+        ) : (
+          <span />
+        )}
+        <DateRangeFilter value={range} onChange={setRange} />
+      </div>
+
+      <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-5">
+        <Kpi label="Total payout" value={formatINRCompact(total)} sub={`${summary.reduce((a, s) => a + s.count, 0)} payouts`} />
         {PAYOUT_STATUSES.map((s) => (
           <button key={s} onClick={() => go(status === s ? '' : s)} className={cx('rounded-2xl text-left ring-2 transition', status === s ? 'ring-ink' : 'ring-transparent')} aria-pressed={status === s}>
             <Kpi label={PAYOUT_STATUS_LABELS[s]} value={formatINRCompact(sum(s).amount)} sub={`${sum(s).count} ${sum(s).count === 1 ? 'payout' : 'payouts'}`} tone={s === 'PAID' ? 'teal' : s === 'HOLD' ? 'red' : s === 'PENDING' ? 'gold' : 'neutral'} />
@@ -72,7 +135,7 @@ function Payouts() {
         <Skeleton className="h-64 rounded-2xl" />
       ) : !q.data?.data.length ? (
         <Card>
-          <EmptyState title={status ? `No ${PAYOUT_STATUS_LABELS[status as PayoutStatus].toLowerCase()} payouts` : 'No payouts yet'} body="A payout appears here as Pending when a case reaches Handover." />
+          <EmptyState title={status ? `No ${PAYOUT_STATUS_LABELS[status as PayoutStatus].toLowerCase()} payouts` : 'No payouts in this period'} body="A payout appears here as Pending when a case reaches Handover." />
         </Card>
       ) : (
         <>
@@ -95,26 +158,30 @@ function Payouts() {
                         {p.loanCase.loanAccountNo ? ` · A/c ${p.loanCase.loanAccountNo}` : ''}
                       </p>
                       <p className="mt-0.5 text-sm text-ink-600">
-                        {p.beneficiary?.name} ({ROLE_LABELS[p.beneficiaryRole]}) · {Number(p.percentSnapshot)}% of {formatINR(p.baseAmount, { whole: true })} · Handover {fmtDate(p.loanCase.handoverDate)}
+                        {p.beneficiary?.name} ({ROLE_LABELS[p.beneficiaryRole]}) · <span className="font-semibold text-ink">{Number(p.percentSnapshot)}%</span> of {formatINR(p.baseAmount, { whole: true })} · Handover {fmtDate(p.loanCase.handoverDate)}
                       </p>
                       {p.paymentRef && <p className="mt-0.5 text-xs text-ink-500">Paid {fmtDate(p.paidOn)} · UTR {p.paymentRef}</p>}
                     </div>
                     <div className="flex items-center justify-between gap-3 sm:flex-col sm:items-end">
                       <p className="font-display text-xl font-bold tabular-nums">{formatINR(p.amount)}</p>
-                      {manage && (
-                        <div className="flex flex-wrap justify-end gap-1.5">
-                          {PAYOUT_TRANSITIONS[p.status].map((to) => (
+                      <div className="flex flex-wrap justify-end gap-1.5">
+                        {p.canAdjust && (
+                          <Button size="sm" variant="secondary" icon={<Pencil className="h-3.5 w-3.5" />} onClick={() => setAdjusting(p)}>
+                            Change % / amount
+                          </Button>
+                        )}
+                        {manage &&
+                          PAYOUT_TRANSITIONS[p.status].map((to) => (
                             <Button key={to} size="sm" variant={to === 'PAID' ? 'teal' : to === 'HOLD' ? 'secondary' : 'primary'} onClick={() => setEditing({ p, to })}>
                               {to === 'PENDING' ? 'Back to Pending' : to === 'HOLD' ? 'Hold' : `Mark ${PAYOUT_STATUS_LABELS[to]}`}
                             </Button>
                           ))}
-                          {!p.receivedFromBank && can('PAYOUT_MARK_BANK_RECEIVED') && (
-                            <Button size="sm" variant="ghost" onClick={() => setReceipt(p)}>
-                              Received from bank
-                            </Button>
-                          )}
-                        </div>
-                      )}
+                        {manage && !p.receivedFromBank && can('PAYOUT_MARK_BANK_RECEIVED') && (
+                          <Button size="sm" variant="ghost" onClick={() => setReceipt(p)}>
+                            Received from bank
+                          </Button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </Card>
@@ -125,6 +192,7 @@ function Payouts() {
         </>
       )}
       {editing && <StatusModal {...editing} onClose={() => setEditing(null)} />}
+      {adjusting && <PayoutAdjustModal p={{ ...adjusting, caseNo: adjusting.loanCase.caseNo }} onClose={() => setAdjusting(null)} />}
       {receipt && <ReceiptModal p={receipt} onClose={() => setReceipt(null)} />}
     </div>
   );

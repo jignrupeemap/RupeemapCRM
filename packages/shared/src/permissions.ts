@@ -113,6 +113,7 @@ const PARTNER_COMMON: Permission[] = [
 /** Executive defaults; Admin can switch each one on or off per executive. */
 export const EXECUTIVE_DEFAULTS: Permission[] = [
   'USER_CREATE_TEAM_PARTNER',
+  'PAYOUT_PERCENTAGE_UPDATE_TEAM',
   'USER_VIEW',
   'USER_RESET_PASSWORD',
   'USER_BLOCK',

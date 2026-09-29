@@ -1,6 +1,6 @@
 'use client';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { Plus, Search, SlidersHorizontal, X } from 'lucide-react';
+import { Plus, Search, SlidersHorizontal, Wallet, X } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
@@ -133,6 +133,18 @@ function Cases() {
               </button>
             );
           })}
+          {can('PAYOUT_VIEW') && (
+            <Link
+              href={`/payouts?${new URLSearchParams({
+                ...(filters.teamPartnerId ? { beneficiaryId: filters.teamPartnerId } : {}),
+                ...(filters.from ? { from: filters.from } : {}),
+                ...(filters.to ? { to: filters.to } : {}),
+              }).toString()}`}
+              className="flex shrink-0 items-center gap-1.5 rounded-full bg-brand-goldsoft px-3 py-1.5 text-sm font-semibold text-amber-900 ring-1 ring-inset ring-amber-200 hover:brightness-95"
+            >
+              <Wallet className="h-4 w-4" /> Payout
+            </Link>
+          )}
         </div>
 
         {showFilters && (

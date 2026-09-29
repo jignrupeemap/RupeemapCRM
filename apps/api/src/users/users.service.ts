@@ -108,7 +108,8 @@ export class UsersService {
     return user;
   }
 
-  async list(actor: AuthUser, q: { role?: string; status?: string; q?: string; dsaId?: string; page?: number; pageSize?: number }) {
+  async list(actor: AuthUser, q: { role?: string; status?: string; q?: string; dsaId?: string; page?: number; pageSize?: number; from?: string; to?: string }) {
+    const period = { from: validDate(q.from), to: validDate(q.to) };
     const page = Math.max(1, Number(q.page) || 1);
     const pageSize = Math.min(100, Math.max(1, Number(q.pageSize) || 20));
     const where: Prisma.UserWhereInput = { AND: [this.scope.userWhere(actor)] };
@@ -133,8 +134,9 @@ export class UsersService {
       this.prisma.user.count({ where }),
     ]);
     const ids = items.map((i) => i.id);
-    const stats = await this.caseStatsByUser(ids);
+    const stats = await this.caseStatsByUser(ids, period);
     const rates = await this.currentRates(ids);
+    const payouts = await this.payoutTotals(ids, period);
     return new Paged(
       items.map((u) => ({
         ...u,
@@ -143,6 +145,7 @@ export class UsersService {
         kycStatus: u.kyc?.status ?? null,
         payoutPercent: rates.get(u.id) ?? null,
         stats: stats.get(u.id) ?? emptyStats(),
+        payout: payouts.get(u.id) ?? { amount: 0, paid: 0, count: 0 },
         dsaProfile: undefined,
         memberships: undefined,
         kyc: undefined,
@@ -174,14 +177,16 @@ export class UsersService {
     };
   }
 
-  private async caseStatsByUser(ids: string[]) {
+  private async caseStatsByUser(ids: string[], period: { from?: Date; to?: Date } = {}) {
     const map = new Map<string, ReturnType<typeof emptyStats>>();
     if (!ids.length) return map;
+    const from = period.from ? Prisma.sql`AND c.created_at >= ${period.from}` : Prisma.empty;
+    const to = period.to ? Prisma.sql`AND c.created_at <= ${period.to}` : Prisma.empty;
     const rows = await this.prisma.$queryRaw<{ uid: string; status: string; n: bigint; amt: Prisma.Decimal | null }[]>`
       SELECT u.uid, c.status::text AS status, count(*) AS n, sum(c.handover_amount) AS amt
       FROM loan_cases c
       JOIN LATERAL (VALUES (c.dsa_id), (c.team_partner_id)) AS u(uid) ON u.uid IS NOT NULL
-      WHERE c.deleted_at IS NULL AND u.uid = ANY(${ids}::uuid[])
+      WHERE c.deleted_at IS NULL AND u.uid = ANY(${ids}::uuid[]) ${from} ${to}
       GROUP BY u.uid, c.status`;
     for (const r of rows) {
       const s = map.get(r.uid) ?? emptyStats();
@@ -189,6 +194,26 @@ export class UsersService {
       (s as any)[r.status.toLowerCase()] = Number(r.n);
       if (r.status === 'HANDOVER') s.handoverAmount = Number(r.amt ?? 0);
       map.set(r.uid, s);
+    }
+    return map;
+  }
+
+  /** Each person's own payout lines (created in the period): total and paid. */
+  private async payoutTotals(ids: string[], period: { from?: Date; to?: Date }) {
+    const map = new Map<string, { amount: number; paid: number; count: number }>();
+    if (!ids.length) return map;
+    const rows = await this.prisma.payout.groupBy({
+      by: ['beneficiaryId', 'status'],
+      where: { beneficiaryId: { in: ids }, createdAt: { gte: period.from, lte: period.to }, loanCase: { deletedAt: null } },
+      _sum: { amount: true },
+      _count: true,
+    });
+    for (const r of rows) {
+      const t = map.get(r.beneficiaryId) ?? { amount: 0, paid: 0, count: 0 };
+      t.amount += Number(r._sum.amount ?? 0);
+      t.count += r._count;
+      if (r.status === 'PAID') t.paid += Number(r._sum.amount ?? 0);
+      map.set(r.beneficiaryId, t);
     }
     return map;
   }
@@ -333,6 +358,12 @@ export class UsersService {
       return k;
     });
   }
+}
+
+function validDate(v?: string) {
+  if (!v) return undefined;
+  const d = new Date(v);
+  return Number.isNaN(d.getTime()) ? undefined : d;
 }
 
 function startOfToday() {

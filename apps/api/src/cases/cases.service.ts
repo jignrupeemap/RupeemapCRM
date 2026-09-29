@@ -18,6 +18,7 @@ import { AuditService } from '../common/audit.service';
 import { ScopeService } from '../common/scope.service';
 import { NotifyService } from '../common/notify.service';
 import { RedisService } from '../common/redis.service';
+import { canAdjustPayout } from '../payouts/payouts.controller';
 import { AppError, conflict, forbidden, notFound } from '../common/errors';
 import { can, type AuthUser, type RequestMeta } from '../common/auth-context';
 import { parse } from '../common/validate';
@@ -265,6 +266,7 @@ export class CasesService {
         ...p,
         beneficiary: people.get(p.beneficiaryId) ?? null,
         kycStatus: kyc.find((k) => k.userId === p.beneficiaryId)?.status ?? null,
+        canAdjust: p.status !== 'PAID' && canAdjustPayout(actor, { beneficiaryRole: p.beneficiaryRole, loanCase: { dsaId: c.dsaId } }),
       })),
       allowedActions: allowedCaseActions(c.status as CaseStatus, {
         role: actor.role,

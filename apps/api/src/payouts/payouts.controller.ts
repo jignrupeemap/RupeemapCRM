@@ -1,14 +1,30 @@
 import { Body, Controller, Get, Headers, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { z } from 'zod';
 import { PAYOUT_STATUS_LABELS, bankReceiptSchema, canMovePayout, payoutUpdateSchema, type PayoutStatus } from '@rupeemap/shared';
 import { PrismaService } from '../common/prisma.service';
 import { AuditService } from '../common/audit.service';
 import { ScopeService } from '../common/scope.service';
 import { NotifyService } from '../common/notify.service';
 import { parse } from '../common/validate';
-import { AppError, conflict, notFound } from '../common/errors';
-import { CurrentUser, Meta, RequirePermission, type AuthUser, type RequestMeta } from '../common/auth-context';
+import { AppError, conflict, forbidden, notFound } from '../common/errors';
+import { can, CurrentUser, Meta, RequirePermission, type AuthUser, type RequestMeta } from '../common/auth-context';
 import { Paged } from '../common/http';
+
+const payoutAdjustSchema = z
+  .object({
+    version: z.number().int().nonnegative(),
+    percent: z.number().min(0, 'Cannot be negative').max(100).optional(),
+    amount: z.number().min(0, 'Cannot be negative').max(1e12).optional(),
+    reason: z.string().trim().min(3, 'Enter a reason').max(500),
+  })
+  .refine((v) => (v.percent === undefined) !== (v.amount === undefined), { message: 'Enter either a percentage or an amount', path: ['percent'] });
+
+/** Staff with PAYOUT_UPDATE: any payout. DSA: only Team Partner lines on their own cases. */
+export function canAdjustPayout(user: AuthUser, p: { beneficiaryRole: string; loanCase: { dsaId: string } }) {
+  if ((user.role === 'ADMIN' || user.role === 'EXECUTIVE') && can(user, 'PAYOUT_UPDATE')) return true;
+  return user.role === 'DSA' && p.beneficiaryRole === 'TEAM_PARTNER' && p.loanCase.dsaId === user.id;
+}
 
 @Controller('payouts')
 export class PayoutsController {
@@ -24,34 +40,105 @@ export class PayoutsController {
   async list(@CurrentUser() user: AuthUser, @Query() q: Record<string, string>) {
     const page = Math.max(1, Number(q.page) || 1);
     const pageSize = Math.min(100, Math.max(1, Number(q.pageSize) || 20));
-    const where: Prisma.PayoutWhereInput = {
-      AND: [
-        this.scope.payoutWhere(user),
-        { loanCase: { deletedAt: null } },
-        q.status ? { status: { in: q.status.split(',') as PayoutStatus[] } } : {},
-        q.bankReceived === '1' ? { receivedFromBank: true } : q.bankReceived === '0' ? { receivedFromBank: false } : {},
-        q.beneficiaryId ? { beneficiaryId: q.beneficiaryId } : {},
-      ],
-    };
+    const date = (v?: string) => (v && !Number.isNaN(new Date(v).getTime()) ? new Date(v) : undefined);
+    // Everything except status, so the status totals follow the person and date filters.
+    const base: Prisma.PayoutWhereInput[] = [
+      this.scope.payoutWhere(user),
+      { loanCase: { deletedAt: null } },
+      q.bankReceived === '1' ? { receivedFromBank: true } : q.bankReceived === '0' ? { receivedFromBank: false } : {},
+      q.beneficiaryId ? { beneficiaryId: q.beneficiaryId } : {},
+      q.from || q.to ? { createdAt: { gte: date(q.from), lte: date(q.to) } } : {},
+    ];
+    const where: Prisma.PayoutWhereInput = { AND: [...base, q.status ? { status: { in: q.status.split(',') as PayoutStatus[] } } : {}] };
     const [items, total, sums] = await Promise.all([
       this.prisma.payout.findMany({
         where,
-        include: { loanCase: { select: { id: true, caseNo: true, loanType: true, loanAccountNo: true, handoverDate: true, customer: { select: { name: true } }, bank: { select: { name: true } } } } },
+        include: { loanCase: { select: { id: true, caseNo: true, dsaId: true, teamPartnerId: true, loanType: true, loanAccountNo: true, handoverDate: true, customer: { select: { name: true } }, bank: { select: { name: true } } } } },
         orderBy: { createdAt: 'desc' },
         skip: (page - 1) * pageSize,
         take: pageSize,
       }),
       this.prisma.payout.count({ where }),
-      this.prisma.payout.groupBy({ by: ['status'], where: { AND: [this.scope.payoutWhere(user), { loanCase: { deletedAt: null } }] }, _sum: { amount: true }, _count: true }),
+      this.prisma.payout.groupBy({ by: ['status'], where: { AND: base }, _sum: { amount: true }, _count: true }),
     ]);
     const users = await this.prisma.user.findMany({ where: { id: { in: [...new Set(items.map((i) => i.beneficiaryId))] } }, select: { id: true, name: true } });
     const kyc = await this.prisma.kycProfile.findMany({ where: { userId: { in: users.map((u) => u.id) } }, select: { userId: true, status: true } });
     const paged = new Paged(
-      items.map((i) => ({ ...i, beneficiary: users.find((u) => u.id === i.beneficiaryId) ?? null, kycStatus: kyc.find((k) => k.userId === i.beneficiaryId)?.status ?? null })),
+      items.map((i) => ({
+        ...i,
+        beneficiary: users.find((u) => u.id === i.beneficiaryId) ?? null,
+        kycStatus: kyc.find((k) => k.userId === i.beneficiaryId)?.status ?? null,
+        canAdjust: i.status !== 'PAID' && canAdjustPayout(user, i),
+      })),
       { page, pageSize, total },
     );
     (paged.meta as any).summary = sums.map((s) => ({ status: s.status, count: s._count, amount: Number(s._sum.amount ?? 0) }));
     return paged;
+  }
+
+  /**
+   * Change the payout % or amount on one case (Rupeemap's request, 29 Sep 2026).
+   * Admin and Executives with PAYOUT_UPDATE can adjust any unpaid payout; a DSA
+   * can adjust only their own Team Partners' lines on their own cases, and not
+   * above the DSA's own % on that case. Every change is kept in payout history.
+   */
+  @Patch(':id/amount')
+  async adjust(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string, @Body() body: unknown, @Meta() meta: RequestMeta) {
+    const b = parse(payoutAdjustSchema, body);
+    return this.prisma.$transaction(async (tx) => {
+      const [row] = await tx.$queryRaw<{ id: string }[]>`SELECT id FROM payouts WHERE id = ${id}::uuid FOR UPDATE`;
+      if (!row) throw notFound('Payout');
+      const p = await tx.payout.findUniqueOrThrow({ where: { id }, include: { loanCase: { select: { id: true, caseNo: true, dsaId: true, deletedAt: true } } } });
+      if (p.loanCase.deletedAt) throw notFound('Payout');
+      if (!canAdjustPayout(user, p)) throw forbidden('You can change payouts only for your own Team Partners');
+      if (p.version !== b.version) throw conflict();
+      if (p.status === 'PAID') throw new AppError('INVALID_TRANSITION', 'A paid payout cannot be changed. Record a recovery instead.');
+
+      const base = Number(p.baseAmount);
+      const percent = b.percent !== undefined ? b.percent : base ? Math.round((b.amount! / base) * 100 * 1000) / 1000 : 0;
+      const amount = b.amount !== undefined ? b.amount : Math.round(((base * b.percent!) / 100) * 100) / 100;
+      if (percent > 100) throw new AppError('VALIDATION_ERROR', 'Payout cannot be more than the handover amount', { fields: { amount: 'Too high' } });
+
+      if (user.role === 'DSA') {
+        const own = await tx.payout.findFirst({ where: { caseId: p.caseId, beneficiaryId: user.id } });
+        const cap = own ? Number(own.percentSnapshot) : null;
+        if (cap !== null && percent > cap) {
+          throw new AppError('VALIDATION_ERROR', `Team Partner payout cannot be more than your own ${cap}% on this case`, { fields: { percent: `Maximum ${cap}%` } });
+        }
+      }
+
+      const updated = await tx.payout.update({
+        where: { id },
+        data: { amount, percentSnapshot: percent, version: { increment: 1 }, remarks: b.reason },
+      });
+      await tx.payoutHistory.create({
+        data: {
+          payoutId: id,
+          prevStatus: p.status,
+          newStatus: p.status,
+          prevAmount: p.amount,
+          newAmount: amount,
+          prevPercent: p.percentSnapshot,
+          newPercent: percent,
+          reason: `Adjusted for this case: ${b.reason}`,
+          changedById: user.id,
+          changedByName: user.name,
+        },
+      });
+      await this.audit.log(
+        tx,
+        user,
+        { action: 'PAYOUT_ADJUSTED', entity: 'payout', entityId: id, before: { amount: p.amount, percent: p.percentSnapshot }, after: { amount, percent, reason: b.reason } },
+        meta,
+      );
+      await this.notify.toUsers(tx, [p.beneficiaryId], {
+        title: `Payout changed for ${p.loanCase.caseNo}`,
+        body: `${percent}% · ₹${amount.toLocaleString('en-IN')} (was ₹${Number(p.amount).toLocaleString('en-IN')}). ${b.reason}`,
+        caseId: p.loanCase.id,
+        sentById: user.id,
+      });
+      return { id, amount: updated.amount, percentSnapshot: updated.percentSnapshot, version: updated.version };
+    });
   }
 
   /**
