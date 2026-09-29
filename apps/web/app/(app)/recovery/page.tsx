@@ -39,7 +39,7 @@ export default function RecoveryPage() {
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div className="no-scrollbar -mx-1 flex gap-1 overflow-x-auto px-1" role="tablist" aria-label="Recovery status">
           {FILTERS.map((f) => (
-            <button key={f.key} role="tab" aria-selected={filter === f.key} onClick={() => setFilter(f.key)} className={cx('shrink-0 rounded-xl px-3 py-2 text-sm font-semibold', filter === f.key ? 'bg-ink text-white' : 'bg-white text-ink-600 ring-1 ring-ink-200 hover:bg-ink-50')}>
+            <button key={f.key} role="tab" aria-selected={filter === f.key} onClick={() => setFilter(f.key)} className={cx('shrink-0 rounded-xl px-3 py-2 text-sm font-semibold', filter === f.key ? 'bg-teal-700 text-white' : 'bg-white text-ink-600 ring-1 ring-ink-200 hover:bg-ink-50')}>
               {f.label}
             </button>
           ))}

@@ -25,18 +25,24 @@ function Login() {
   const [mode, setMode] = useState<Mode>('login');
   return (
     <div className="grid min-h-dvh lg:grid-cols-[1.1fr_1fr]">
-      <section className="relative hidden overflow-hidden bg-ink p-12 text-white lg:flex lg:flex-col lg:justify-between">
-        <div className="rounded-2xl bg-white p-3 self-start">
+      <section className="relative hidden overflow-hidden bg-[linear-gradient(155deg,#0d1714_0%,#123a34_55%,#1b5a52_100%)] p-12 text-white lg:flex lg:flex-col lg:justify-between">
+        <div className="pointer-events-none absolute inset-0 opacity-[.07] [background-image:linear-gradient(#fff_1px,transparent_1px),linear-gradient(90deg,#fff_1px,transparent_1px)] [background-size:44px_44px]" aria-hidden />
+        <div className="relative self-start rounded-2xl bg-white p-3 shadow-pop">
           <Image src="/rupeemap-logo.jpg" alt="Rupeemap" width={170} height={102} priority />
         </div>
-        <div className="max-w-md">
+        <div className="relative max-w-md">
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-teal-400">Loan DSA CRM</p>
           <h1 className="mt-3 font-display text-4xl font-extrabold leading-tight [text-wrap:balance]">Every case from Login to Handover, and every rupee of payout, in one place.</h1>
-          <ul className="mt-8 space-y-3 text-ink-300">
+          <ul className="mt-8 space-y-3 text-teal-50/80">
             <li className="flex gap-3"><span className="mt-2 h-1.5 w-1.5 rounded-full bg-teal-400" />Track Login, Sanction, Disbursed and Handover for your whole team</li>
             <li className="flex gap-3"><span className="mt-2 h-1.5 w-1.5 rounded-full bg-brand-gold" />Payout created automatically on Handover</li>
             <li className="flex gap-3"><span className="mt-2 h-1.5 w-1.5 rounded-full bg-brand-red" />Project Master, bankers and bank codes at hand</li>
           </ul>
+          <div className="mt-10 flex flex-wrap gap-2 text-xs font-medium text-teal-50/90">
+            {['Encrypted documents', 'Tamper-proof audit log', 'Role-based access'].map((t) => (
+              <span key={t} className="rounded-full bg-white/10 px-3 py-1.5 ring-1 ring-inset ring-white/15 backdrop-blur">{t}</span>
+            ))}
+          </div>
         </div>
         <svg className="absolute -bottom-6 right-0 h-64 w-[420px] opacity-90" viewBox="0 0 420 260" aria-hidden>
           {[0, 1, 2, 3, 4, 5, 6].map((i) => (
@@ -47,8 +53,8 @@ function Login() {
         </svg>
       </section>
 
-      <section className="flex items-center justify-center px-4 py-10 pt-[calc(40px+env(safe-area-inset-top))]">
-        <div className="w-full max-w-sm">
+      <section className="flex items-center justify-center bg-canvas px-4 py-10 pt-[calc(40px+env(safe-area-inset-top))]">
+        <div className="w-full max-w-md rounded-3xl border border-ink-200/60 bg-white p-6 shadow-lift sm:p-8">
           <div className="mb-8 flex justify-center lg:hidden">
             <Image src="/rupeemap-logo.jpg" alt="Rupeemap" width={150} height={90} priority />
           </div>
@@ -189,7 +195,7 @@ function OtpFlow({ mode, onMode }: { mode: 'activate' | 'reset'; onMode: (m: Mod
           {['Mobile', 'OTP', 'Password'].map((s, i) => {
             const idx = ['mobile', 'otp', 'password'].indexOf(step);
             return (
-              <li key={s} className={`flex-1 rounded-full py-1 text-center ${i <= idx ? 'bg-ink text-white' : 'bg-ink-100 text-ink-500'}`} aria-current={i === idx ? 'step' : undefined}>
+              <li key={s} className={`flex-1 rounded-full py-1 text-center ${i <= idx ? 'bg-teal-700 text-white' : 'bg-ink-100 text-ink-500'}`} aria-current={i === idx ? 'step' : undefined}>
                 {s}
               </li>
             );

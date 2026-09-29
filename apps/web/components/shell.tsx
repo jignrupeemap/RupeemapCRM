@@ -129,7 +129,7 @@ function GlobalSearch() {
         value={q}
         onChange={(e) => setQ(e.target.value)}
         placeholder="Search case ID, customer, mobile, loan account"
-        className="h-10 w-full rounded-xl border border-ink-200 bg-ink-50 pl-9 pr-3 text-sm placeholder:text-ink-400 focus:border-teal-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-teal-100"
+        className="h-10 w-full rounded-xl border border-transparent bg-ink-100/70 pl-9 pr-3 text-sm transition placeholder:text-ink-400 hover:bg-ink-100 focus:border-teal-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-teal-100"
         aria-label="Search cases"
       />
     </form>
@@ -151,7 +151,7 @@ function ProfileMenu() {
   return (
     <div className="relative" ref={ref}>
       <button onClick={() => setOpen((v) => !v)} className="flex items-center gap-2 rounded-xl p-1 pr-2 hover:bg-ink-100" aria-haspopup="menu" aria-expanded={open}>
-        <span className="flex h-9 w-9 items-center justify-center rounded-full bg-ink text-sm font-bold text-white">{initials(me.name)}</span>
+        <span className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-gradient text-sm font-bold text-white ring-2 ring-white shadow-card">{initials(me.name)}</span>
         <span className="hidden text-left lg:block">
           <span className="block text-sm font-semibold leading-tight text-ink">{me.name}</span>
           <span className="block text-xs text-ink-500">{ROLE_LABELS[me.role]}</span>
@@ -215,32 +215,37 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-dvh lg:pl-64">
       {/* Desktop sidebar */}
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-ink-200 bg-white lg:flex">
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-ink-200/70 bg-white lg:flex">
         <div className="flex h-20 items-center px-5">
           <Logo />
         </div>
-        <div className="px-4 pb-3">
-          <Link href="/cases/new" className="flex h-11 items-center justify-center gap-2 rounded-xl bg-ink font-semibold text-white hover:bg-ink-800">
-            <Plus className="h-4 w-4" /> Add New Case
-          </Link>
-        </div>
+        {me.permissions.includes('CASE_CREATE') && (
+          <div className="px-4 pb-2">
+            <Link href="/cases/new" className="flex h-11 items-center justify-center gap-2 rounded-xl bg-brand-gradient font-semibold text-white shadow-brand transition hover:brightness-110 active:scale-[.98]">
+              <Plus className="h-4 w-4" /> Add New Case
+            </Link>
+          </div>
+        )}
         <nav className="flex-1 overflow-y-auto px-3 pb-6" aria-label="Main">
           {NAV.map((g) => {
             const items = g.items.filter((i) => visible(i, me.permissions, me.role));
             if (!items.length) return null;
             return (
               <div key={g.group} className="mt-4">
-                <p className="px-3 pb-1 text-[11px] font-bold uppercase tracking-wider text-ink-400">{g.group}</p>
+                <p className="px-3 pb-1.5 text-[10.5px] font-semibold uppercase tracking-[0.12em] text-ink-400">{g.group}</p>
                 {items.map((i) => (
                   <Link
                     key={i.href}
                     href={i.href}
+                    aria-current={active(i.href) ? 'page' : undefined}
                     className={cx(
-                      'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition',
-                      active(i.href) ? 'bg-ink text-white' : 'text-ink-700 hover:bg-ink-100',
+                      'group relative flex items-center gap-3 rounded-xl px-3 py-2 text-[14px] transition',
+                      active(i.href)
+                        ? 'bg-teal-50 font-semibold text-teal-900 before:absolute before:inset-y-2 before:-left-3 before:w-1 before:rounded-r-full before:bg-teal-600'
+                        : 'font-medium text-ink-600 hover:bg-ink-50 hover:text-ink',
                     )}
                   >
-                    <i.icon className="h-[18px] w-[18px]" />
+                    <i.icon className={cx('h-[18px] w-[18px] shrink-0 transition', active(i.href) ? 'text-teal-700' : 'text-ink-400 group-hover:text-ink-600')} />
                     <span className="flex-1">{i.label}</span>
                     {i.soon && <span className={cx('rounded px-1.5 text-[10px] font-bold uppercase', active(i.href) ? 'bg-white/15' : 'bg-ink-100 text-ink-500')}>Soon</span>}
                   </Link>
@@ -249,10 +254,20 @@ export function AppShell({ children }: { children: ReactNode }) {
             );
           })}
         </nav>
+        <Link href="/profile" className="m-3 flex items-center gap-3 rounded-2xl border border-ink-200/70 bg-canvas p-3 transition hover:border-teal-200 hover:bg-teal-50/60">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-gradient text-sm font-bold text-white">{initials(me.name)}</span>
+          <span className="min-w-0">
+            <span className="block truncate text-sm font-semibold text-ink">{me.name}</span>
+            <span className="block truncate text-xs text-ink-500">
+              {ROLE_LABELS[me.role]}
+              {me.dsaCode ? ` · ${me.dsaCode}` : ''}
+            </span>
+          </span>
+        </Link>
       </aside>
 
       {/* Header */}
-      <header className="sticky top-0 z-20 border-b border-ink-200/80 bg-white/90 pt-[env(safe-area-inset-top)] backdrop-blur">
+      <header className="sticky top-0 z-20 border-b border-ink-200/70 bg-white/85 pt-[env(safe-area-inset-top)] backdrop-blur-md">
         <div className="flex h-16 items-center gap-3 px-4 lg:px-8">
           {pathname !== '/' && (
             <button
@@ -285,12 +300,12 @@ export function AppShell({ children }: { children: ReactNode }) {
           {BOTTOM.map((b) =>
             b.fab ? (
               <Link key={b.href} href={b.href} className="flex flex-col items-center justify-center" aria-label="Add New Case">
-                <span className="-mt-6 flex h-14 w-14 items-center justify-center rounded-2xl bg-ink text-white shadow-pop ring-4 ring-white">
+                <span className="-mt-6 flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-gradient text-white shadow-brand ring-4 ring-white">
                   <Plus className="h-6 w-6" />
                 </span>
               </Link>
             ) : (
-              <Link key={b.href} href={b.href} className={cx('flex flex-col items-center gap-0.5 py-2.5 text-[11px] font-semibold', active(b.href) ? 'text-ink' : 'text-ink-400')}>
+              <Link key={b.href} href={b.href} className={cx('flex flex-col items-center gap-0.5 py-2.5 text-[11px] font-semibold', active(b.href) ? 'text-teal-700' : 'text-ink-400')}>
                 <b.icon className="h-5 w-5" />
                 {b.label}
               </Link>
@@ -311,7 +326,7 @@ export function PageHeader({ title, sub, actions, back }: { title: string; sub?:
             ← {back.label}
           </Link>
         )}
-        <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink [text-wrap:balance]">{title}</h1>
+        <h1 className="font-display text-[26px] font-extrabold leading-tight tracking-tight text-ink [text-wrap:balance]">{title}</h1>
         {sub && <div className="mt-1 text-sm text-ink-500">{sub}</div>}
       </div>
       {actions && <div className="flex flex-wrap gap-2">{actions}</div>}

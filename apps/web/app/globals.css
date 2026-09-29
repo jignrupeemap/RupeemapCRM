@@ -10,8 +10,41 @@ html {
   -webkit-tap-highlight-color: transparent;
 }
 body {
-  @apply bg-ink-50 text-ink antialiased;
-  font-feature-settings: 'cv11', 'ss01';
+  @apply bg-canvas text-ink antialiased;
+  /* Inter: straight-sided 1, open digits, disambiguated l/I for IDs and amounts. */
+  font-feature-settings: 'cv05', 'cv08', 'cv11', 'ss01';
+  letter-spacing: -0.006em;
+}
+h1,
+h2,
+h3 {
+  letter-spacing: -0.02em;
+}
+.tabular-nums {
+  font-feature-settings: 'tnum', 'cv05', 'cv11';
+}
+::selection {
+  @apply bg-teal-200 text-ink;
+}
+/* Tables across the CRM: calmer header, clearer rows. */
+main table thead th {
+  @apply text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-500;
+}
+main table tbody tr {
+  @apply transition-colors;
+}
+/* Thin, quiet scrollbars on desktop. */
+@media (pointer: fine) {
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply rounded-full border-[3px] border-solid border-transparent bg-ink-300 bg-clip-padding;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-ink-400;
+  }
 }
 .no-scrollbar::-webkit-scrollbar {
   display: none;

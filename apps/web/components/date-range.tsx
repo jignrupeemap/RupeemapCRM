@@ -55,7 +55,7 @@ export function DateRangeFilter({ value, onChange, className }: { value: RangeVa
                   : { ...value, key: p.key },
               )
             }
-            className={cx('flex shrink-0 items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold', value.key === p.key ? 'bg-ink text-white' : 'text-ink-600 hover:bg-ink-50')}
+            className={cx('flex shrink-0 items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold', value.key === p.key ? 'bg-teal-700 text-white' : 'text-ink-600 hover:bg-ink-50')}
           >
             {p.key === 'custom' && <CalendarRange className="h-3.5 w-3.5" />}
             {p.label}

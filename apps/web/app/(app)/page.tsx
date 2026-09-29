@@ -52,7 +52,7 @@ interface Summary {
 }
 
 const QUICK: { href: string; label: string; icon: typeof Plus; perm?: Permission; roles?: string[]; tone: string }[] = [
-  { href: '/cases/new', label: 'Add New Case', icon: Plus, perm: 'CASE_CREATE', tone: 'bg-ink text-white' },
+  { href: '/cases/new', label: 'Add New Case', icon: Plus, perm: 'CASE_CREATE', tone: 'bg-brand-gradient text-white shadow-brand' },
   { href: '/cases', label: 'All Cases', icon: FileStack, tone: 'bg-sky-50 text-sky-800' },
   { href: '/team', label: 'Team Data', icon: Users, perm: 'USER_VIEW', roles: ['DSA'], tone: 'bg-violet-50 text-violet-800' },
   { href: '/users', label: 'Users', icon: Users, perm: 'USER_VIEW', roles: ['ADMIN', 'EXECUTIVE'], tone: 'bg-violet-50 text-violet-800' },
@@ -93,16 +93,19 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-sm text-ink-500">{hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'},</p>
-          <h1 className="font-display text-2xl font-extrabold tracking-tight">{me.name}</h1>
+          <p className="text-sm font-medium text-ink-500">
+            {hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'} ·{' '}
+            {new Intl.DateTimeFormat('en-IN', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Asia/Kolkata' }).format(new Date())}
+          </p>
+          <h1 className="font-display text-[28px] font-extrabold leading-tight tracking-tight">{me.name}</h1>
         </div>
-        <p className="text-sm text-ink-500">
-          {ROLE_LABELS[me.role]}
-          {me.dsaCode && ` · ${me.dsaCode}`}
-          {me.dsa && ` · Team of ${me.dsa.name}`}
-        </p>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="inline-flex items-center rounded-full bg-teal-700 px-3 py-1 text-xs font-semibold text-white">{ROLE_LABELS[me.role]}</span>
+          {me.dsaCode && <span className="inline-flex items-center rounded-full bg-white px-3 py-1 font-mono text-xs font-semibold text-ink-700 ring-1 ring-inset ring-ink-200">{me.dsaCode}</span>}
+          {me.dsa && <span className="inline-flex items-center rounded-full bg-white px-3 py-1 text-xs font-medium text-ink-600 ring-1 ring-inset ring-ink-200">Team of {me.dsa.name}</span>}
+        </div>
       </div>
 
       {sliders.isLoading ? <Skeleton className="h-[210px] rounded-3xl lg:h-[34vh]" /> : <HeroSlider slides={sliders.data ?? []} />}
@@ -113,7 +116,7 @@ export default function DashboardPage() {
           tone={me.kycStatus === 'UNDER_ADMIN_VERIFICATION' ? 'teal' : 'gold'}
           action={
             me.kycStatus !== 'UNDER_ADMIN_VERIFICATION' && (
-              <Link href="/profile#kyc" className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-ink px-4 text-sm font-semibold text-white hover:bg-ink-800">
+              <Link href="/profile#kyc" className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-brand-gradient px-4 text-sm font-semibold text-white shadow-brand hover:brightness-110">
                 <Upload className="h-4 w-4" /> {me.kycStatus === 'RESUBMISSION_REQUIRED' ? 'Fix documents' : 'Upload documents'}
               </Link>
             )
@@ -128,8 +131,8 @@ export default function DashboardPage() {
       <section aria-label="Quick actions">
         <div className="grid grid-cols-4 gap-2 sm:grid-cols-5 lg:grid-cols-10">
           {quick.map((q) => (
-            <Link key={q.href} href={q.href} className="group flex flex-col items-center gap-2 rounded-2xl p-2 text-center transition hover:bg-white hover:shadow-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500">
-              <span className={cx('flex h-12 w-12 items-center justify-center rounded-2xl transition group-hover:scale-105', q.tone)}>
+            <Link key={q.href} href={q.href} className="group flex flex-col items-center gap-2 rounded-2xl border border-transparent p-2.5 text-center transition hover:border-ink-200/60 hover:bg-white hover:shadow-lift focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500">
+              <span className={cx('flex h-12 w-12 items-center justify-center rounded-2xl ring-1 ring-inset ring-black/[.04] transition group-hover:-translate-y-0.5', q.tone)}>
                 <q.icon className="h-[22px] w-[22px]" />
               </span>
               <span className="text-[12px] font-semibold leading-tight text-ink-700">{q.label}</span>
@@ -140,7 +143,7 @@ export default function DashboardPage() {
 
       <section aria-label="Key numbers" className="space-y-3">
         <div className="flex flex-wrap items-start justify-between gap-2">
-          <h2 className="pt-1.5 font-display text-base font-bold">{isAdmin ? 'Organisation overview' : me.role === 'DSA' ? 'You and your team' : 'Your cases'}</h2>
+          <h2 className="pt-1.5 font-display text-[17px] font-bold">{isAdmin ? 'Organisation overview' : me.role === 'DSA' ? 'You and your team' : 'Your cases'}</h2>
           <DateRangeFilter value={range} onChange={setRange} />
         </div>
         {!s ? (

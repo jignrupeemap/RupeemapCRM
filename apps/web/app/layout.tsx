@@ -1,10 +1,11 @@
 import type { Metadata, Viewport } from 'next';
-import { Archivo, Plus_Jakarta_Sans } from 'next/font/google';
+import { Inter, Manrope } from 'next/font/google';
 import './globals.css';
 import { Providers } from './providers';
 
-const sans = Plus_Jakarta_Sans({ subsets: ['latin'], variable: '--font-sans', display: 'swap' });
-const display = Archivo({ subsets: ['latin'], variable: '--font-display', weight: ['600', '700', '800'], display: 'swap' });
+// Inter for reading (clear digits for amounts and case numbers), Manrope for headings.
+const sans = Inter({ subsets: ['latin'], variable: '--font-sans', display: 'swap' });
+const display = Manrope({ subsets: ['latin'], variable: '--font-display', weight: ['600', '700', '800'], display: 'swap' });
 
 export const metadata: Metadata = {
   title: { default: 'Rupeemap CRM', template: '%s · Rupeemap CRM' },

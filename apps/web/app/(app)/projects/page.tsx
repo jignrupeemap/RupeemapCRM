@@ -180,7 +180,7 @@ function ProjectModal({ project, onClose }: { project: Project | null; onClose: 
             {UNIT_TYPES.map((u) => {
               const on = v.unitTypes.includes(u);
               return (
-                <button type="button" key={u} aria-pressed={on} onClick={() => set('unitTypes', on ? v.unitTypes.filter((x) => x !== u) : [...v.unitTypes, u])} className={cx('rounded-full px-3 py-1.5 text-sm font-semibold ring-1 ring-inset', on ? 'bg-ink text-white ring-ink' : 'ring-ink-200')}>{title(u)}</button>
+                <button type="button" key={u} aria-pressed={on} onClick={() => set('unitTypes', on ? v.unitTypes.filter((x) => x !== u) : [...v.unitTypes, u])} className={cx('rounded-full px-3 py-1.5 text-sm font-semibold ring-1 ring-inset', on ? 'bg-teal-700 text-white ring-teal-700' : 'ring-ink-200')}>{title(u)}</button>
               );
             })}
           </div>

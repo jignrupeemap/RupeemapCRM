@@ -259,7 +259,7 @@ export default function NewCasePage() {
                       key={l.code}
                       onClick={() => set('loanType', l.code)}
                       aria-pressed={on}
-                      className={cx('flex flex-col items-center gap-2 rounded-2xl border p-3 text-sm font-semibold transition', on ? 'border-ink bg-ink text-white' : 'border-ink-200 hover:border-ink-400')}
+                      className={cx('flex flex-col items-center gap-2 rounded-2xl border p-3 text-sm font-semibold transition', on ? 'border-teal-700 bg-teal-700 text-white' : 'border-ink-200 hover:border-ink-400')}
                     >
                       <Icon className="h-5 w-5" />
                       {l.name}

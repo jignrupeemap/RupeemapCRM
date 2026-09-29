@@ -94,7 +94,7 @@ export function TicketsView({ kind, caseId, embedded }: { kind: TicketKind; case
             {FILTERS.filter((x) => staff || !x.mine).map((x) => {
               const n = x.status ? x.status.split(',').reduce((a, s) => a + (counts[s] ?? 0), 0) : undefined;
               return (
-                <button key={x.key} role="tab" aria-selected={filter === x.key} onClick={() => (setFilter(x.key), setPage(1))} className={cx('shrink-0 rounded-xl px-3 py-2 text-sm font-semibold', filter === x.key ? 'bg-ink text-white' : 'bg-white text-ink-600 ring-1 ring-ink-200 hover:bg-ink-50')}>
+                <button key={x.key} role="tab" aria-selected={filter === x.key} onClick={() => (setFilter(x.key), setPage(1))} className={cx('shrink-0 rounded-xl px-3 py-2 text-sm font-semibold', filter === x.key ? 'bg-teal-700 text-white' : 'bg-white text-ink-600 ring-1 ring-ink-200 hover:bg-ink-50')}>
                   {x.label}
                   {n !== undefined && !x.mine && n > 0 && <span className="ml-1.5 tabular-nums opacity-70">{n}</span>}
                 </button>
@@ -340,7 +340,7 @@ function TicketModal({ id, onClose }: { id: string; onClose: () => void }) {
                   <div
                     className={cx(
                       'max-w-[85%] rounded-2xl px-3.5 py-2.5 text-sm',
-                      m.internal ? 'border border-dashed border-amber-300 bg-brand-goldsoft text-amber-950' : m.authorId === me?.id ? 'bg-ink text-white' : 'bg-ink-100 text-ink',
+                      m.internal ? 'border border-dashed border-amber-300 bg-brand-goldsoft text-amber-950' : m.authorId === me?.id ? 'bg-teal-700 text-white' : 'bg-ink-100 text-ink',
                     )}
                   >
                     <p className={cx('mb-0.5 text-xs font-semibold', m.authorId === me?.id && !m.internal ? 'text-white/70' : 'text-ink-500')}>

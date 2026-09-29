@@ -274,7 +274,7 @@ export function InsurancePayoutModal({ policyId, payout, title, onClose }: { pol
                 type="button"
                 aria-pressed={status === s}
                 onClick={() => setStatus(status === s ? '' : s)}
-                className={cx('rounded-full px-3 py-1.5 text-sm font-semibold ring-1 ring-inset', status === s ? 'bg-ink text-white ring-ink' : 'ring-ink-200')}
+                className={cx('rounded-full px-3 py-1.5 text-sm font-semibold ring-1 ring-inset', status === s ? 'bg-teal-700 text-white ring-teal-700' : 'ring-ink-200')}
               >
                 {INSURANCE_PAYOUT_LABELS[s]}
               </button>

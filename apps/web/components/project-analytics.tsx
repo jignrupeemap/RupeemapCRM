@@ -105,7 +105,7 @@ export function ProjectAnalytics() {
                 role="tab"
                 aria-selected={sort === s.key}
                 onClick={() => setSort(s.key)}
-                className={cx('shrink-0 rounded-lg px-3 py-1.5 text-sm font-semibold', sort === s.key ? 'bg-ink text-white' : 'text-ink-600 hover:bg-ink-100')}
+                className={cx('shrink-0 rounded-lg px-3 py-1.5 text-sm font-semibold', sort === s.key ? 'bg-teal-700 text-white' : 'text-ink-600 hover:bg-ink-100')}
               >
                 {s.label}
               </button>

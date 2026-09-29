@@ -71,7 +71,7 @@ export default function ReportsPage() {
         <Card className="h-fit p-2 print:hidden">
           <nav aria-label="Reports" className="flex gap-1 overflow-x-auto lg:flex-col">
             {available.data?.map((x) => (
-              <button key={x.key} onClick={() => setKey(x.key)} className={cx('shrink-0 rounded-xl px-3 py-2 text-left text-sm font-semibold', key === x.key ? 'bg-ink text-white' : 'text-ink-700 hover:bg-ink-100')}>
+              <button key={x.key} onClick={() => setKey(x.key)} className={cx('shrink-0 rounded-xl px-3 py-2 text-left text-sm font-semibold', key === x.key ? 'bg-teal-700 text-white' : 'text-ink-700 hover:bg-ink-100')}>
                 {x.label}
               </button>
             ))}

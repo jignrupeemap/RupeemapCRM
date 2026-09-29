@@ -379,7 +379,7 @@ function ActionModal({ p, kind, onClose }: { p: Person; kind: 'rate' | 'status' 
         {kind === 'kyc' && (
           <div className="grid grid-cols-2 gap-2">
             {(['APPROVE', 'REJECT'] as const).map((d) => (
-              <label key={d} className={cx('flex cursor-pointer justify-center rounded-xl border py-2.5 text-sm font-semibold', decision === d ? 'border-ink bg-ink text-white' : 'border-ink-200')}>
+              <label key={d} className={cx('flex cursor-pointer justify-center rounded-xl border py-2.5 text-sm font-semibold', decision === d ? 'border-teal-700 bg-teal-700 text-white' : 'border-ink-200')}>
                 <input type="radio" className="sr-only" checked={decision === d} onChange={() => setDecision(d)} />
                 {d === 'APPROVE' ? 'Approve' : 'Needs resubmission'}
               </label>

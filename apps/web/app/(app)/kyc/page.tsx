@@ -58,7 +58,7 @@ export default function KycQueuePage() {
               role="tab"
               aria-selected={tab === t.key}
               onClick={() => setTab(t.key)}
-              className={cx('shrink-0 rounded-xl px-3 py-2 text-sm font-semibold', tab === t.key ? 'bg-ink text-white' : 'bg-white text-ink-600 ring-1 ring-ink-200 hover:bg-ink-50')}
+              className={cx('shrink-0 rounded-xl px-3 py-2 text-sm font-semibold', tab === t.key ? 'bg-teal-700 text-white' : 'bg-white text-ink-600 ring-1 ring-ink-200 hover:bg-ink-50')}
             >
               {t.label}
             </button>

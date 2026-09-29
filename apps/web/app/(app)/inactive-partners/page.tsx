@@ -121,7 +121,7 @@ function Inactive() {
             onClick={() => router.replace(`/inactive-partners?tab=${t.key}`)}
             className={cx(
               'rounded-2xl border p-3 text-left transition sm:p-4',
-              tab === t.key ? 'border-ink bg-ink text-white shadow-pop' : 'border-ink-200/70 bg-white shadow-card hover:border-ink-300',
+              tab === t.key ? 'border-teal-700 bg-teal-700 text-white shadow-pop' : 'border-ink-200/70 bg-white shadow-card hover:border-ink-300',
             )}
           >
             <span className={cx('block text-xs font-semibold uppercase tracking-wide', tab === t.key ? 'text-white/70' : 'text-ink-500')}>{t.label}</span>

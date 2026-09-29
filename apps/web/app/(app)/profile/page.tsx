@@ -37,7 +37,7 @@ export default function ProfilePage() {
       <PageHeader title="Profile" />
       <Card className="p-5">
         <div className="mb-5 flex items-center gap-4">
-          <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-ink font-display text-lg font-bold text-white">{initials(me.name)}</span>
+          <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-gradient font-display text-lg font-bold text-white shadow-brand">{initials(me.name)}</span>
           <div>
             <p className="font-display text-xl font-bold">{me.name}</p>
             <p className="text-sm text-ink-500">{ROLE_LABELS[me.role]}{me.dsaCode ? ` · ${me.dsaCode}` : ''}</p>

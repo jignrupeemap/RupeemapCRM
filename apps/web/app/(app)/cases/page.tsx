@@ -147,12 +147,12 @@ function Cases() {
           </div>
           <Button variant="secondary" onClick={() => setShowFilters((v) => !v)} icon={<SlidersHorizontal className="h-4 w-4" />} aria-expanded={showFilters}>
             <span className="hidden sm:inline">Filters</span>
-            {filterCount > 0 && <span className="rounded-full bg-ink px-1.5 text-xs text-white">{filterCount}</span>}
+            {filterCount > 0 && <span className="rounded-full bg-teal-700 px-1.5 text-xs text-white">{filterCount}</span>}
           </Button>
         </div>
 
         <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 sm:mx-0 sm:flex-wrap sm:px-0" role="group" aria-label="Status">
-          <button onClick={() => set({ status: '' })} className={cx('shrink-0 rounded-full px-3 py-1.5 text-sm font-semibold ring-1 ring-inset', !activeStatuses.length ? 'bg-ink text-white ring-ink' : 'bg-white text-ink-600 ring-ink-200')}>
+          <button onClick={() => set({ status: '' })} className={cx('shrink-0 rounded-full px-3 py-1.5 text-sm font-semibold ring-1 ring-inset', !activeStatuses.length ? 'bg-teal-700 text-white ring-teal-700' : 'bg-white text-ink-600 ring-ink-200')}>
             All
           </button>
           {CASE_STATUSES.map((st) => {
@@ -162,7 +162,7 @@ function Cases() {
                 key={st}
                 aria-pressed={on}
                 onClick={() => set({ status: on ? activeStatuses.filter((x) => x !== st).join(',') : [...activeStatuses, st].join(',') })}
-                className={cx('shrink-0 rounded-full px-3 py-1.5 text-sm font-semibold ring-1 ring-inset', on ? 'bg-ink text-white ring-ink' : 'bg-white text-ink-600 ring-ink-200')}
+                className={cx('shrink-0 rounded-full px-3 py-1.5 text-sm font-semibold ring-1 ring-inset', on ? 'bg-teal-700 text-white ring-teal-700' : 'bg-white text-ink-600 ring-ink-200')}
               >
                 {CASE_STATUS_LABELS[st]}
               </button>

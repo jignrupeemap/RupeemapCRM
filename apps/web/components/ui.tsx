@@ -15,9 +15,9 @@ export const cx = clsx;
 
 type Variant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'teal';
 const variants: Record<Variant, string> = {
-  primary: 'bg-ink text-white hover:bg-ink-800 disabled:bg-ink-400',
-  teal: 'bg-teal text-white hover:bg-teal-700 disabled:bg-teal-400',
-  secondary: 'bg-white text-ink ring-1 ring-inset ring-ink-200 hover:bg-ink-50 disabled:text-ink-400',
+  primary: 'bg-brand-gradient text-white shadow-brand hover:brightness-110 disabled:bg-none disabled:bg-teal-400 disabled:shadow-none',
+  teal: 'bg-teal-700 text-white hover:bg-teal-800 disabled:bg-teal-400',
+  secondary: 'bg-white text-ink shadow-card ring-1 ring-inset ring-ink-200 hover:bg-ink-50 hover:ring-ink-300 disabled:text-ink-400',
   ghost: 'text-ink-700 hover:bg-ink-100',
   danger: 'bg-brand-red text-white hover:brightness-95 disabled:opacity-60',
 };
@@ -29,7 +29,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonHTMLAttributes<HTMLBut
         ref={ref}
         disabled={disabled || loading}
         className={cx(
-          'inline-flex select-none items-center justify-center gap-2 rounded-xl font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed',
+          'inline-flex select-none items-center justify-center gap-2 rounded-xl font-semibold transition active:scale-[.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed',
           size === 'sm' && 'h-9 px-3 text-sm',
           size === 'md' && 'h-11 px-4 text-sm',
           size === 'lg' && 'h-12 px-5 text-base',
@@ -65,7 +65,7 @@ export function Field({ label, error, hint, children, required, htmlFor }: { lab
 }
 
 const inputBase =
-  'h-11 w-full rounded-xl border border-ink-200 bg-white px-3 text-[15px] text-ink placeholder:text-ink-400 focus:border-teal-500 focus:outline-none focus:ring-4 focus:ring-teal-100 disabled:bg-ink-50 aria-[invalid=true]:border-brand-red';
+  'h-11 w-full rounded-xl border border-ink-200 bg-white px-3 text-[15px] text-ink shadow-[inset_0_1px_1px_rgba(16,40,35,.03)] transition placeholder:text-ink-400 hover:border-ink-300 focus:border-teal-500 focus:outline-none focus:ring-4 focus:ring-teal-100 disabled:bg-ink-50 aria-[invalid=true]:border-brand-red';
 
 export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement> & { prefix?: string }>(function Input({ className, prefix, ...rest }, ref) {
   if (prefix)
@@ -91,14 +91,14 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<H
 });
 
 export function Card({ className, children, as: As = 'div' }: { className?: string; children: ReactNode; as?: any }) {
-  return <As className={cx('rounded-2xl border border-ink-200/70 bg-white shadow-card', className)}>{children}</As>;
+  return <As className={cx('rounded-2xl border border-ink-200/60 bg-white shadow-card', className)}>{children}</As>;
 }
 
 export function SectionTitle({ title, action, sub }: { title: string; sub?: string; action?: ReactNode }) {
   return (
     <div className="mb-3 flex items-end justify-between gap-3">
       <div>
-        <h2 className="font-display text-base font-bold text-ink">{title}</h2>
+        <h2 className="font-display text-[17px] font-bold text-ink">{title}</h2>
         {sub && <p className="text-sm text-ink-500">{sub}</p>}
       </div>
       {action}
@@ -147,17 +147,28 @@ export function Badge({ children, tone = 'neutral' }: { children: ReactNode; ton
   return <span className={cx('inline-flex items-center whitespace-nowrap rounded-md px-2 py-0.5 text-xs font-semibold', t)}>{children}</span>;
 }
 
-export function Kpi({ label, value, sub, tone = 'neutral', href }: { label: string; value: ReactNode; sub?: ReactNode; tone?: 'neutral' | 'teal' | 'gold' | 'red'; href?: string }) {
-  const accent = { neutral: 'before:bg-ink-200', teal: 'before:bg-teal', gold: 'before:bg-brand-gold', red: 'before:bg-brand-red' }[tone];
+const KPI_TONE = {
+  neutral: { tile: 'from-white to-white', dot: 'bg-ink-300', value: 'text-ink' },
+  teal: { tile: 'from-teal-50 to-white', dot: 'bg-teal-600', value: 'text-teal-900' },
+  gold: { tile: 'from-brand-goldsoft to-white', dot: 'bg-brand-gold', value: 'text-amber-900' },
+  red: { tile: 'from-brand-redsoft to-white', dot: 'bg-brand-red', value: 'text-red-900' },
+};
+
+export function Kpi({ label, value, sub, tone = 'neutral', href, icon }: { label: string; value: ReactNode; sub?: ReactNode; tone?: 'neutral' | 'teal' | 'gold' | 'red'; href?: string; icon?: ReactNode }) {
+  const t = KPI_TONE[tone];
   const body = (
-    <div className={cx('relative h-full overflow-hidden rounded-2xl border border-ink-200/70 bg-white p-4 shadow-card transition before:absolute before:inset-x-0 before:top-0 before:h-1', accent, href && 'hover:border-ink-300 hover:shadow-pop')}>
-      <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">{label}</p>
-      <p className="mt-1.5 font-display text-2xl font-bold tabular-nums text-ink">{value}</p>
-      {sub && <p className="mt-0.5 text-xs text-ink-500">{sub}</p>}
+    <div className={cx('group relative flex h-full flex-col overflow-hidden rounded-2xl border border-ink-200/60 bg-gradient-to-br p-4 shadow-card transition duration-200', t.tile, href && 'hover:-translate-y-0.5 hover:border-teal-200 hover:shadow-lift')}>
+      <p className="flex items-start gap-1.5 pr-3 text-[11px] font-semibold uppercase leading-tight tracking-[0.05em] text-ink-500">
+        <span className={cx('mt-[3px] h-1.5 w-1.5 shrink-0 rounded-full', t.dot)} aria-hidden />
+        <span>{label}</span>
+      </p>
+      {icon ? <span className="absolute right-3 top-3">{icon}</span> : href && <ChevronRight className="absolute right-2.5 top-3.5 h-3.5 w-3.5 text-teal-600 opacity-0 transition group-hover:translate-x-0.5 group-hover:opacity-100" aria-hidden />}
+      <p className={cx('mt-auto pt-2 font-display text-[26px] font-extrabold leading-none tracking-tight tabular-nums', t.value)}>{value}</p>
+      {sub && <p className="mt-1.5 truncate text-xs text-ink-500">{sub}</p>}
     </div>
   );
   return href ? (
-    <Link href={href} className="block h-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 rounded-2xl">
+    <Link href={href} className="block h-full rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500">
       {body}
     </Link>
   ) : (
@@ -172,7 +183,7 @@ export function Skeleton({ className }: { className?: string }) {
 export function EmptyState({ title, body, action, icon }: { title: string; body?: string; action?: ReactNode; icon?: ReactNode }) {
   return (
     <div className="flex flex-col items-center justify-center gap-2 px-6 py-12 text-center">
-      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-ink-100 text-ink-500">{icon ?? <Inbox className="h-6 w-6" />}</div>
+      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-teal-50 text-teal-700 ring-1 ring-teal-100">{icon ?? <Inbox className="h-6 w-6" />}</div>
       <p className="font-semibold text-ink">{title}</p>
       {body && <p className="max-w-sm text-sm text-ink-500">{body}</p>}
       {action && <div className="mt-2">{action}</div>}
@@ -235,10 +246,10 @@ export function Tab({ value, children, count }: { value: string; children: React
   return (
     <TabsPrimitive.Trigger
       value={value}
-      className="relative -mb-px shrink-0 border-b-2 border-transparent px-3 py-2.5 text-sm font-semibold text-ink-500 transition hover:text-ink data-[state=active]:border-ink data-[state=active]:text-ink"
+      className="relative -mb-px shrink-0 border-b-2 border-transparent px-3 py-2.5 text-sm font-semibold text-ink-500 transition hover:text-ink data-[state=active]:border-teal-600 data-[state=active]:text-teal-800"
     >
       {children}
-      {count ? <span className="ml-1.5 rounded-full bg-ink-100 px-1.5 text-xs text-ink-600">{count}</span> : null}
+      {count ? <span className="ml-1.5 rounded-full bg-teal-50 px-1.5 text-xs text-teal-800">{count}</span> : null}
     </TabsPrimitive.Trigger>
   );
 }

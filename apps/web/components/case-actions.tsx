@@ -164,7 +164,7 @@ function TransitionModal({ c, action, onClose }: { c: CaseForActions; action: Ca
               </legend>
               <div className="grid grid-cols-3 gap-2">
                 {DISBURSEMENT_TYPES.map((t) => (
-                  <label key={t} className={`flex cursor-pointer items-center justify-center rounded-xl border px-2 py-2.5 text-center text-sm font-semibold ${v.disbursementType === t ? 'border-ink bg-ink text-white' : 'border-ink-200'}`}>
+                  <label key={t} className={`flex cursor-pointer items-center justify-center rounded-xl border px-2 py-2.5 text-center text-sm font-semibold ${v.disbursementType === t ? 'border-teal-700 bg-teal-700 text-white' : 'border-ink-200'}`}>
                     <input type="radio" name="dt" className="sr-only" checked={v.disbursementType === t} onChange={() => set('disbursementType', t)} />
                     {DISBURSEMENT_TYPE_LABELS[t]}
                   </label>
@@ -188,7 +188,7 @@ function TransitionModal({ c, action, onClose }: { c: CaseForActions; action: Ca
                   [true, 'Yes'],
                   [false, 'No'],
                 ].map(([val, label]) => (
-                  <label key={String(val)} className={`flex cursor-pointer items-center justify-center rounded-xl border py-2.5 text-sm font-semibold ${v.otcPddCleared === val ? 'border-ink bg-ink text-white' : 'border-ink-200'}`}>
+                  <label key={String(val)} className={`flex cursor-pointer items-center justify-center rounded-xl border py-2.5 text-sm font-semibold ${v.otcPddCleared === val ? 'border-teal-700 bg-teal-700 text-white' : 'border-ink-200'}`}>
                     <input type="radio" name="otc" className="sr-only" checked={v.otcPddCleared === val} onChange={() => set('otcPddCleared', val)} />
                     {label as string}
                   </label>
