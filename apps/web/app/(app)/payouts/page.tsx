@@ -18,6 +18,7 @@ interface PayoutRow {
   amount: string;
   baseAmount: string;
   percentSnapshot: string;
+  beneficiaryId: string;
   beneficiaryRole: Role;
   beneficiary: { id: string; name: string } | null;
   kycStatus: string | null;
@@ -87,7 +88,7 @@ function Payouts() {
                         </Link>
                         <PayoutChip status={p.status} />
                         {p.receivedFromBank && <Badge tone="teal">Received from bank</Badge>}
-                        {p.kycStatus !== 'APPROVED' && p.status !== 'PAID' && <Badge tone="gold">KYC pending</Badge>}
+                        {p.kycStatus !== 'APPROVED' && p.status !== 'PAID' && (manage ? <Link href={`/kyc/${p.beneficiaryId}`} className="hover:underline"><Badge tone="gold">KYC pending</Badge></Link> : <Badge tone="gold">KYC pending</Badge>)}
                       </div>
                       <p className="mt-0.5 text-sm text-ink-500">
                         {p.loanCase.caseNo} · {loanTypeName(p.loanCase.loanType)} · {p.loanCase.bank.name}

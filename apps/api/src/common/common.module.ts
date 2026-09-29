@@ -5,10 +5,11 @@ import { AuditService } from './audit.service';
 import { ScopeService } from './scope.service';
 import { SmsService } from './sms.service';
 import { NotifyService } from './notify.service';
+import { StorageService } from './storage.service';
 
 @Global()
 @Module({
-  providers: [PrismaService, RedisService, AuditService, ScopeService, SmsService, NotifyService],
-  exports: [PrismaService, RedisService, AuditService, ScopeService, SmsService, NotifyService],
+  providers: [PrismaService, RedisService, AuditService, ScopeService, SmsService, NotifyService, StorageService],
+  exports: [PrismaService, RedisService, AuditService, ScopeService, SmsService, NotifyService, StorageService],
 })
 export class CommonModule {}

@@ -10,3 +10,4 @@ storage/
 dump.rdb
 .pnpm-store/
 .cache/
+*.tsbuildinfo

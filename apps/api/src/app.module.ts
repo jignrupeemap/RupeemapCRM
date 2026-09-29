@@ -19,6 +19,8 @@ import { InactivityService } from './inactivity/inactivity.service';
 import { ReportsController } from './reports/reports.controller';
 import { ChecklistsController } from './checklists/checklists.controller';
 import { ChecklistsService } from './checklists/checklists.service';
+import { KycController } from './kyc/kyc.controller';
+import { KycService } from './kyc/kyc.service';
 
 @Module({
   imports: [CommonModule],
@@ -34,6 +36,7 @@ import { ChecklistsService } from './checklists/checklists.service';
     InactivityController,
     ReportsController,
     ChecklistsController,
+    KycController,
   ],
   providers: [
     AuthService,
@@ -41,6 +44,7 @@ import { ChecklistsService } from './checklists/checklists.service';
     CasesService,
     InactivityService,
     ChecklistsService,
+    KycService,
     { provide: APP_GUARD, useClass: AuthGuard },
     { provide: APP_INTERCEPTOR, useClass: EnvelopeInterceptor },
     { provide: APP_FILTER, useClass: GlobalExceptionFilter },

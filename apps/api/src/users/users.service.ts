@@ -317,6 +317,10 @@ export class UsersService {
     const kyc = await this.prisma.kycProfile.findUnique({ where: { userId: id } });
     if (!kyc) throw notFound('KYC profile');
     if (decision === 'REJECT' && !reason) throw new AppError('VALIDATION_ERROR', 'Enter the rejection reason');
+    // Admin decides only on a complete set the Executive has submitted.
+    if (kyc.status !== 'UNDER_ADMIN_VERIFICATION') {
+      throw new AppError('INVALID_TRANSITION', 'KYC documents have not been submitted for verification yet');
+    }
     return this.prisma.$transaction(async (tx) => {
       const k = await tx.kycProfile.update({
         where: { userId: id },

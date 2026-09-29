@@ -2,7 +2,9 @@
 
 Everything stays inside the `Rupeemap.claude` folder: packages, caches (`.cache/`, `.pnpm-store/`) and the local database (`.cache/pgdata`).
 
-Open a terminal in the folder and run each in its own window:
+**Easiest:** double-click `START-RUPEEMAP.bat` in this folder. It starts everything and opens the login page. Keep its small black windows open while you use the CRM.
+
+To start the parts by hand instead, open a terminal in the folder and run each in its own window:
 
 ```bash
 node scripts/local-db.mjs

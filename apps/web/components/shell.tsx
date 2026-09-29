@@ -47,6 +47,7 @@ export const NAV: { group: string; items: NavItem[] }[] = [
       { href: '/team', label: 'Team Data', icon: Users, perm: 'USER_VIEW', roles: ['DSA'] },
       { href: '/users', label: 'Users', icon: Users, perm: 'USER_VIEW', roles: ['ADMIN', 'EXECUTIVE'] },
       { href: '/inactive-partners', label: 'Inactive Partners', icon: UserMinus, perm: 'USER_VIEW', roles: ['ADMIN', 'EXECUTIVE'] },
+      { href: '/kyc', label: 'First Payout KYC', icon: ShieldCheck, perm: 'KYC_VIEW', roles: ['ADMIN', 'EXECUTIVE'] },
       { href: '/payouts', label: 'Payout', icon: Wallet, perm: 'PAYOUT_VIEW' },
     ],
   },

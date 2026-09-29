@@ -68,6 +68,36 @@ export const KYC_STATUSES = [
 ] as const;
 export type KycStatus = (typeof KYC_STATUSES)[number];
 
+export const KYC_STATUS_LABELS: Record<KycStatus, string> = {
+  DOCUMENTS_PENDING: 'Documents pending',
+  UPLOADED: 'Uploaded',
+  UNDER_ADMIN_VERIFICATION: 'Under Admin verification',
+  APPROVED: 'Approved',
+  REJECTED: 'Rejected',
+  RESUBMISSION_REQUIRED: 'Resubmission required',
+};
+
+/** First payout KYC documents (PART 38). GST certificate only when the partner is GST registered. */
+export const KYC_DOC_TYPES = ['PAN', 'AADHAAR', 'CANCELLED_CHEQUE', 'PHOTO', 'GST_CERTIFICATE'] as const;
+export type KycDocType = (typeof KYC_DOC_TYPES)[number];
+export const KYC_DOC_LABELS: Record<KycDocType, string> = {
+  PAN: 'PAN card',
+  AADHAAR: 'Aadhaar card (masked)',
+  CANCELLED_CHEQUE: 'Cancelled cheque',
+  PHOTO: 'Photograph',
+  GST_CERTIFICATE: 'GST certificate',
+};
+export const KYC_DOC_HINTS: Record<KycDocType, string> = {
+  PAN: 'Clear copy of the partner’s PAN card',
+  AADHAAR: 'Upload the masked Aadhaar (first 8 digits hidden), as UIDAI advises',
+  CANCELLED_CHEQUE: 'Cheque of the bank account payouts will be paid into',
+  PHOTO: 'Recent passport-size photograph',
+  GST_CERTIFICATE: 'Needed only when the partner is GST registered',
+};
+export function requiredKycDocs(gstApplicable: boolean): KycDocType[] {
+  return gstApplicable ? [...KYC_DOC_TYPES] : KYC_DOC_TYPES.filter((t) => t !== 'GST_CERTIFICATE');
+}
+
 export const PROJECT_TYPES = ['RESIDENTIAL', 'COMMERCIAL', 'INDUSTRIAL'] as const;
 export type ProjectType = (typeof PROJECT_TYPES)[number];
 export const UNIT_TYPES = ['FLAT', 'PLOT', 'BUNGALOW', 'OFFICE', 'SHOP', 'SHED', 'HOUSE'] as const;

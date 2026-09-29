@@ -3,6 +3,7 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { KeyRound, MoreVertical, Percent, Plus, ShieldCheck, TrendingUp, UserX } from 'lucide-react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { ROLE_LABELS, type Role } from '@rupeemap/shared';
@@ -43,6 +44,7 @@ export function PeopleList({ role, title }: { role?: Role; title?: string }) {
   const [roleFilter, setRoleFilter] = useState<string>(role ?? '');
   const [adding, setAdding] = useState(false);
   const [action, setAction] = useState<{ p: Person; kind: 'rate' | 'status' | 'reset' | 'promote' | 'kyc' } | null>(null);
+  const router = useRouter();
   const list = useQuery({
     queryKey: ['users', roleFilter, q, page],
     queryFn: () => api.page<Person>('/users', { role: roleFilter, q, page, pageSize: 20 }),
@@ -133,7 +135,7 @@ export function PeopleList({ role, title }: { role?: Role; title?: string }) {
                         </div>
                       </td>
                       <td className="px-2 py-3">
-                        <RowMenu p={p} onAction={(kind) => setAction({ p, kind })} />
+                        <RowMenu p={p} onAction={(kind) => (kind === 'kyc' ? router.push(`/kyc/${p.id}`) : setAction({ p, kind }))} />
                       </td>
                     </tr>
                   ))}
@@ -157,7 +159,7 @@ function RowMenu({ p, onAction }: { p: Person; onAction: (k: 'rate' | 'status' |
   const items: [string, typeof Percent, 'rate' | 'status' | 'reset' | 'promote' | 'kyc', boolean][] = [
     ['Set payout %', Percent, 'rate', p.role === 'DSA' ? can('PAYOUT_PERCENTAGE_UPDATE_DSA') : p.role === 'TEAM_PARTNER' && can('PAYOUT_PERCENTAGE_UPDATE_TEAM')],
     ['Reset password', KeyRound, 'reset', can('USER_RESET_PASSWORD') && p.role !== 'ADMIN' && (p.role !== 'EXECUTIVE' || me?.role === 'ADMIN')],
-    ['Verify KYC', ShieldCheck, 'kyc', can('KYC_VERIFY') && !!p.kycStatus && p.kycStatus !== 'APPROVED'],
+    ['First payout KYC', ShieldCheck, 'kyc', (can('KYC_VERIFY') || can('KYC_UPLOAD')) && !!p.kycStatus && me?.role !== 'DSA'],
     ['Promote to DSA', TrendingUp, 'promote', can('USER_PROMOTE') && p.role === 'TEAM_PARTNER'],
     [p.status === 'ACTIVE' ? 'Block or suspend' : 'Change status', UserX, 'status', can('USER_BLOCK') && p.role !== 'ADMIN' && p.id !== me?.id && p.status !== 'DEACTIVATED'],
   ];

@@ -4,14 +4,14 @@ import { LogOut } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { toast } from 'sonner';
-import { ROLE_LABELS } from '@rupeemap/shared';
+import Link from 'next/link';
+import { KYC_STATUS_LABELS, ROLE_LABELS, type KycStatus } from '@rupeemap/shared';
 import { api, ApiError } from '@/lib/api';
 import { fmtDateTime, initials } from '@/lib/format';
 import { useMe } from '@/lib/session';
 import { PageHeader } from '@/components/shell';
 import { Badge, Button, Card, DetailGrid, Field, Input } from '@/components/ui';
 
-const KYC: Record<string, string> = { DOCUMENTS_PENDING: 'Documents pending', UPLOADED: 'Uploaded', UNDER_ADMIN_VERIFICATION: 'Under Admin verification', APPROVED: 'Approved', REJECTED: 'Rejected', RESUBMISSION_REQUIRED: 'Resubmission required' };
 
 export default function ProfilePage() {
   const { data: me } = useMe();
@@ -47,7 +47,7 @@ export default function ProfilePage() {
           ['Email', me.email ?? '—'],
           ['Role', ROLE_LABELS[me.role]],
           ...(me.dsa ? [['DSA', `${me.dsa.name}`] as [string, string]] : []),
-          ...(me.kycStatus ? [['First payout KYC', KYC[me.kycStatus] ?? me.kycStatus] as [string, string]] : []),
+          ...(me.kycStatus ? [['First payout KYC', <Link key="kyc" href={`/kyc/${me.id}`} className="font-semibold text-teal-700 hover:underline">{KYC_STATUS_LABELS[me.kycStatus as KycStatus] ?? me.kycStatus}</Link>] as [string, React.ReactNode]] : []),
           ['Last sign-in', fmtDateTime(me.lastLoginAt)],
         ]} />
       </Card>

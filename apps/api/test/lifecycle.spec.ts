@@ -213,6 +213,14 @@ describe('Loan case lifecycle', () => {
     expect(c.status, JSON.stringify(c.body)).toBe(200);
     const blocked = await exec.patch(`/api/v1/payouts/${p.id}/status`).set(H).send({ status: 'PAID', version: c.body.data.version, reason: 'NEFT', paymentRef: 'UTR123' });
     expect(blocked.body.code).toBe('KYC_NOT_APPROVED');
+    const early = await admin.post(`/api/v1/users/${dsaId}/kyc`).set(H).send({ decision: 'APPROVE' });
+    expect(early.body.code).toBe('INVALID_TRANSITION'); // nothing uploaded yet
+    const png = Buffer.from('89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000a49444154789c63000100000500010d0a2db40000000049454e44ae426082', 'hex');
+    for (const type of ['PAN', 'AADHAAR', 'CANCELLED_CHEQUE', 'PHOTO']) {
+      const u = await exec.post(`/api/v1/kyc/${dsaId}/documents/${type}`).set(H).attach('file', png, `${type.toLowerCase()}.png`);
+      expect(u.status, JSON.stringify(u.body)).toBe(201);
+    }
+    expect((await exec.post(`/api/v1/kyc/${dsaId}/submit`).set(H)).status).toBe(201);
     const execKyc = await exec.post(`/api/v1/users/${dsaId}/kyc`).set(H).send({ decision: 'APPROVE' });
     expect(execKyc.status).toBe(403); // Admin is the final verifier
     const ok = await admin.post(`/api/v1/users/${dsaId}/kyc`).set(H).send({ decision: 'APPROVE' });

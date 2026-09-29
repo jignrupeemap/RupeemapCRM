@@ -58,6 +58,14 @@ enum KycStatus {
   RESUBMISSION_REQUIRED
 }
 
+enum KycDocType {
+  PAN
+  AADHAAR
+  CANCELLED_CHEQUE
+  PHOTO
+  GST_CERTIFICATE
+}
+
 enum ProjectType {
   RESIDENTIAL
   COMMERCIAL
@@ -233,10 +241,62 @@ model KycProfile {
   verifiedById    String?   @map("verified_by") @db.Uuid
   verifiedAt      DateTime? @map("verified_at")
   rejectionReason String?   @map("rejection_reason")
+  submittedAt     DateTime? @map("submitted_at")
   updatedAt       DateTime  @updatedAt @map("updated_at")
   user            User      @relation(fields: [userId], references: [id])
+  documents       KycDocument[]
 
   @@map("kyc_profiles")
+}
+
+/// One uploaded version of a KYC document. Re-uploads add a new version; nothing is overwritten.
+model KycDocument {
+  id             String     @id @default(uuid()) @db.Uuid
+  kycProfileId   String     @map("kyc_profile_id") @db.Uuid
+  type           KycDocType
+  version        Int
+  current        Boolean    @default(true)
+  documentId     String     @unique @map("document_id") @db.Uuid
+  uploadedById   String     @map("uploaded_by") @db.Uuid
+  uploadedByName String     @map("uploaded_by_name")
+  createdAt      DateTime   @default(now()) @map("created_at")
+  profile        KycProfile @relation(fields: [kycProfileId], references: [id])
+  document       Document   @relation(fields: [documentId], references: [id])
+
+  @@unique([kycProfileId, type, version])
+  @@index([kycProfileId, type, current])
+  @@map("kyc_documents")
+}
+
+/// A private file. Stored encrypted outside the web root under a random key.
+model Document {
+  id           String    @id @default(uuid()) @db.Uuid
+  storageKey   String    @unique @map("storage_key")
+  originalName String    @map("original_name")
+  mime         String
+  sizeBytes    Int       @map("size_bytes")
+  sha256       String
+  encrypted    Boolean   @default(true)
+  scanStatus   String    @default("UNSCANNED") @map("scan_status")
+  uploadedById String    @map("uploaded_by") @db.Uuid
+  createdAt    DateTime  @default(now()) @map("created_at")
+  deletedAt    DateTime? @map("deleted_at")
+  kyc          KycDocument?
+  accessLogs   DocumentAccessLog[]
+
+  @@map("documents")
+}
+
+model DocumentAccessLog {
+  id         BigInt   @id @default(autoincrement())
+  documentId String   @map("document_id") @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  ip         String?
+  at         DateTime @default(now())
+  document   Document @relation(fields: [documentId], references: [id])
+
+  @@index([documentId, at])
+  @@map("document_access_logs")
 }
 
 // ───────────── Master data ─────────────

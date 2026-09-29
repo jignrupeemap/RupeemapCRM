@@ -65,7 +65,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       body = {
         success: false,
         code: status === 404 ? 'NOT_FOUND' : status === 401 ? 'UNAUTHENTICATED' : status === 403 ? 'FORBIDDEN' : 'VALIDATION_ERROR',
-        message: status === 404 ? 'Not found' : 'Request could not be processed',
+        message: status === 404 ? 'Not found' : status === 413 ? 'File is larger than 10 MB' : 'Request could not be processed',
       };
     }
 

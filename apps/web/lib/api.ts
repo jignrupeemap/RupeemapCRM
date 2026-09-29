@@ -20,12 +20,14 @@ export interface Paged<T> {
 
 async function call<T>(method: string, path: string, body?: unknown, headers: Record<string, string> = {}): Promise<{ data: T; meta?: any }> {
   let res: Response;
+  const isForm = typeof FormData !== 'undefined' && body instanceof FormData;
   try {
     res = await fetch(`/api/v1${path}`, {
       method,
       credentials: 'same-origin',
-      headers: { 'content-type': 'application/json', 'x-requested-with': 'rupeemap', ...headers },
-      body: body === undefined ? undefined : JSON.stringify(body),
+      // The browser sets the multipart boundary itself for FormData.
+      headers: { ...(isForm ? {} : { 'content-type': 'application/json' }), 'x-requested-with': 'rupeemap', ...headers },
+      body: body === undefined ? undefined : isForm ? (body as FormData) : JSON.stringify(body),
     });
   } catch {
     throw new ApiError('NETWORK', 'You appear to be offline. Check your connection and try again.', 0);
@@ -59,6 +61,11 @@ export const api = {
   patch: async <T>(path: string, body?: unknown, headers?: Record<string, string>) => (await call<T>('PATCH', path, body ?? {}, headers)).data,
   put: async <T>(path: string, body?: unknown) => (await call<T>('PUT', path, body ?? {})).data,
   del: async <T>(path: string) => (await call<T>('DELETE', path)).data,
+  upload: async <T>(path: string, file: File, field = 'file') => {
+    const form = new FormData();
+    form.append(field, file);
+    return (await call<T>('POST', path, form)).data;
+  },
 };
 
 export function newIdempotencyKey() {
