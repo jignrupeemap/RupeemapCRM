@@ -49,6 +49,14 @@ enum PayoutStatus {
   HOLD
 }
 
+/// Insurance commission Rupeemap receives from the insurer. Never shared with partners.
+enum InsurancePayoutStatus {
+  PENDING
+  CONFIRMED
+  RECEIVED
+  HOLD
+}
+
 enum KycStatus {
   DOCUMENTS_PENDING
   UPLOADED
@@ -443,6 +451,7 @@ model LoanCase {
   remarks           CaseRemark[]
   payouts           Payout[]
   checklist         CaseChecklistItem[]
+  insurance         InsurancePolicy[]
 
   @@index([dsaId, createdAt(sort: Desc)])
   @@index([teamPartnerId, createdAt(sort: Desc)])
@@ -597,6 +606,67 @@ model PayoutHistory {
 
   @@index([payoutId, changedAt])
   @@map("payout_history")
+}
+
+/// Insurance sold against a case (PART 34). Separate ledger from loan payouts.
+model InsurancePolicy {
+  id               String    @id @default(uuid()) @db.Uuid
+  caseId           String    @map("case_id") @db.Uuid
+  companyName      String    @map("company_name")
+  productName      String?   @map("product_name")
+  policyNumber     String?   @map("policy_number")
+  insuranceAmount  Decimal   @map("insurance_amount") @db.Decimal(15, 2)
+  premiumAmount    Decimal?  @map("premium_amount") @db.Decimal(15, 2)
+  managerName      String?   @map("manager_name")
+  managerMobile    String?   @map("manager_mobile")
+  managerEmail     String?   @map("manager_email")
+  remarks          String?
+  createdById      String    @map("created_by") @db.Uuid
+  version          Int       @default(0)
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+  deletedAt        DateTime? @map("deleted_at")
+  loanCase         LoanCase  @relation(fields: [caseId], references: [id])
+  payout           InsurancePayout?
+
+  @@index([caseId])
+  @@map("insurance_policies")
+}
+
+/// Rupeemap's insurance commission for one policy. Rupeemap keeps 100%; it never feeds partner payouts.
+model InsurancePayout {
+  id          String                @id @default(uuid()) @db.Uuid
+  policyId    String                @unique @map("policy_id") @db.Uuid
+  amount      Decimal               @db.Decimal(15, 2)
+  status      InsurancePayoutStatus @default(PENDING)
+  receivedOn  DateTime?             @map("received_on")
+  reference   String?
+  remarks     String?
+  version     Int                   @default(0)
+  createdAt   DateTime              @default(now()) @map("created_at")
+  updatedAt   DateTime              @updatedAt @map("updated_at")
+  policy      InsurancePolicy       @relation(fields: [policyId], references: [id])
+  history     InsurancePayoutHistory[]
+
+  @@index([status])
+  @@map("insurance_payouts")
+}
+
+model InsurancePayoutHistory {
+  id            String                 @id @default(uuid()) @db.Uuid
+  payoutId      String                 @map("payout_id") @db.Uuid
+  prevAmount    Decimal?               @map("prev_amount") @db.Decimal(15, 2)
+  newAmount     Decimal?               @map("new_amount") @db.Decimal(15, 2)
+  prevStatus    InsurancePayoutStatus? @map("prev_status")
+  newStatus     InsurancePayoutStatus? @map("new_status")
+  reason        String
+  changedById   String                 @map("changed_by") @db.Uuid
+  changedByName String                 @map("changed_by_name")
+  changedAt     DateTime               @default(now()) @map("changed_at")
+  payout        InsurancePayout        @relation(fields: [payoutId], references: [id])
+
+  @@index([payoutId, changedAt])
+  @@map("insurance_payout_history")
 }
 
 // ───────────── Communication & content ─────────────

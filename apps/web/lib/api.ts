@@ -33,6 +33,14 @@ async function call<T>(method: string, path: string, body?: unknown, headers: Re
     throw new ApiError('NETWORK', 'You appear to be offline. Check your connection and try again.', 0);
   }
   const json = await res.json().catch(() => null);
+  // No JSON from a 5xx means the website could not reach the Rupeemap server at all.
+  if (!json && res.status >= 500) {
+    throw new ApiError(
+      'SERVER_DOWN',
+      'The Rupeemap server is not running or is restarting. Please try again in a minute. If Rupeemap runs on this computer, double-click START-RUPEEMAP.bat first.',
+      res.status,
+    );
+  }
   if (!res.ok || !json?.success) {
     const err = new ApiError(json?.code ?? 'INTERNAL_ERROR', json?.message ?? 'Something went wrong. Please try again.', res.status, json?.details);
     if (res.status === 401 && typeof window !== 'undefined' && !path.startsWith('/auth/')) {

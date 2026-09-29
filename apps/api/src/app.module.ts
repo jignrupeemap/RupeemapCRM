@@ -21,6 +21,8 @@ import { ChecklistsController } from './checklists/checklists.controller';
 import { ChecklistsService } from './checklists/checklists.service';
 import { KycController } from './kyc/kyc.controller';
 import { KycService } from './kyc/kyc.service';
+import { InsuranceController } from './insurance/insurance.controller';
+import { InsuranceService } from './insurance/insurance.service';
 
 @Module({
   imports: [CommonModule],
@@ -37,6 +39,7 @@ import { KycService } from './kyc/kyc.service';
     ReportsController,
     ChecklistsController,
     KycController,
+    InsuranceController,
   ],
   providers: [
     AuthService,
@@ -45,6 +48,7 @@ import { KycService } from './kyc/kyc.service';
     InactivityService,
     ChecklistsService,
     KycService,
+    InsuranceService,
     { provide: APP_GUARD, useClass: AuthGuard },
     { provide: APP_INTERCEPTOR, useClass: EnvelopeInterceptor },
     { provide: APP_FILTER, useClass: GlobalExceptionFilter },

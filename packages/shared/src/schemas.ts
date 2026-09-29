@@ -178,3 +178,34 @@ export const caseChecklistUpdateSchema = z.object({
   status: z.enum(CHECKLIST_ITEM_STATUSES),
   remarks: z.string().trim().max(300).optional(),
 });
+
+/** A blank form field means "not given", never 0. */
+const optionalMoney = z.preprocess((v) => (v === '' || v === null ? undefined : v), z.coerce.number().nonnegative('Cannot be negative').max(1e12).optional());
+
+const optionalText = (max: number) => z.string().trim().max(max).optional().or(z.literal('').transform(() => undefined));
+
+export const insurancePolicySchema = z.object({
+  companyName: z.string().trim().min(2, 'Enter the insurance company').max(120),
+  productName: optionalText(120),
+  policyNumber: optionalText(60),
+  insuranceAmount: z.coerce.number({ invalid_type_error: 'Enter the insurance amount' }).positive('Enter the insurance amount').max(1e12),
+  premiumAmount: optionalMoney,
+  managerName: optionalText(120),
+  managerMobile: mobileSchema.optional().or(z.literal('').transform(() => undefined)),
+  managerEmail: z.string().trim().email('Enter a valid email').optional().or(z.literal('').transform(() => undefined)),
+  remarks: optionalText(1000),
+  /** Rupeemap's commission on this policy (optional when adding; can be set later). */
+  payoutAmount: optionalMoney,
+});
+export type InsurancePolicyInput = z.infer<typeof insurancePolicySchema>;
+
+export const insurancePayoutUpdateSchema = z
+  .object({
+    version: z.number().int().nonnegative(),
+    amount: z.number().nonnegative().max(1e12).optional(),
+    status: z.enum(['PENDING', 'CONFIRMED', 'RECEIVED', 'HOLD']).optional(),
+    receivedOn: z.coerce.date().optional(),
+    reference: z.string().trim().max(80).optional(),
+    reason: z.string().trim().min(3, 'Enter a reason').max(500),
+  })
+  .refine((v) => v.amount !== undefined || v.status !== undefined, { message: 'Change the amount or the status', path: ['status'] });

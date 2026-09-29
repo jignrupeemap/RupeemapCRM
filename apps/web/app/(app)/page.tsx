@@ -47,6 +47,7 @@ interface Summary {
   recent: { id: string; caseNo: string; status: CaseStatus; loanType: string; appliedAmount: string; createdAt: string; customer: { name: string }; bank: { name: string } }[];
   trend: { month: string; logins: number; handovers: number; handoverAmount: number }[];
   users: { role: string; status: string; count: number }[];
+  insurance: { policies: number; total: number; received: number; pending: number } | null;
 }
 
 const QUICK: { href: string; label: string; icon: typeof Plus; perm?: Permission; roles?: string[]; tone: string }[] = [
@@ -154,12 +155,15 @@ export default function DashboardPage() {
               <Kpi label="Reject" value={s.cases.REJECT} tone={s.cases.REJECT ? 'red' : 'neutral'} href="/cases?status=REJECT" />
               <Kpi label="Withdraw" value={s.cases.WITHDRAW} href="/cases?status=WITHDRAW" />
             </div>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-5">
+            <div className={cx('grid grid-cols-2 gap-3 sm:grid-cols-4', s.insurance ? 'lg:grid-cols-6' : 'lg:grid-cols-5')}>
               <Kpi label="Pending payout" value={formatINRCompact(s.payouts.PENDING.amount)} sub={`${s.payouts.PENDING.count} payouts`} tone="gold" href="/payouts?status=PENDING" />
               <Kpi label="Confirmed" value={formatINRCompact(s.payouts.CONFIRMED.amount)} sub={`${s.payouts.CONFIRMED.count} payouts`} href="/payouts?status=CONFIRMED" />
               <Kpi label="Paid" value={formatINRCompact(s.payouts.PAID.amount)} sub={`${s.payouts.PAID.count} payouts`} tone="teal" href="/payouts?status=PAID" />
               <Kpi label="Hold" value={formatINRCompact(s.payouts.HOLD.amount)} sub={`${s.payouts.HOLD.count} payouts`} tone={s.payouts.HOLD.count ? 'red' : 'neutral'} href="/payouts?status=HOLD" />
               <Kpi label="Recovery" value="₹0" sub="Module in Phase 11" />
+              {s.insurance && (
+                <Kpi label="Insurance payout (Rupeemap)" value={formatINRCompact(s.insurance.total)} sub={`${formatINRCompact(s.insurance.received)} received · ${s.insurance.policies} policies`} tone="teal" href="/insurance" />
+              )}
             </div>
           </>
         )}

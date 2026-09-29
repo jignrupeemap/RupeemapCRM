@@ -155,3 +155,19 @@ export const INACTIVITY = {
   /** The partner code is deactivated automatically; only Admin can reactivate. */
   DEACTIVATE_DAYS: 90,
 } as const;
+
+/** Insurance commission Rupeemap receives. Rupeemap keeps 100%; it is never part of partner payouts. */
+export const INSURANCE_PAYOUT_STATUSES = ['PENDING', 'CONFIRMED', 'RECEIVED', 'HOLD'] as const;
+export type InsurancePayoutStatus = (typeof INSURANCE_PAYOUT_STATUSES)[number];
+export const INSURANCE_PAYOUT_LABELS: Record<InsurancePayoutStatus, string> = {
+  PENDING: 'Pending',
+  CONFIRMED: 'Confirmed',
+  RECEIVED: 'Received',
+  HOLD: 'Hold',
+};
+export const INSURANCE_PAYOUT_TRANSITIONS: Record<InsurancePayoutStatus, InsurancePayoutStatus[]> = {
+  PENDING: ['CONFIRMED', 'HOLD'],
+  CONFIRMED: ['RECEIVED', 'HOLD', 'PENDING'],
+  HOLD: ['PENDING', 'CONFIRMED'],
+  RECEIVED: [],
+};

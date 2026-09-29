@@ -333,7 +333,10 @@ describe('Loan case lifecycle', () => {
     expect(adminKpi.body.data.users.length).toBeGreaterThan(0);
     const other = await login('9000000003');
     const otherKpi = await other.get('/api/v1/dashboard/summary');
-    expect(otherKpi.body.data.cases.total).toBe(0);
+    // Only that DSA's own team's cases, never this test's cases.
+    const mehul = await prisma.user.findUniqueOrThrow({ where: { mobile: '9000000003' } });
+    expect(otherKpi.body.data.cases.total).toBe(await prisma.loanCase.count({ where: { deletedAt: null, dsaId: mehul.id } }));
+    expect(otherKpi.body.data.recent.map((c: any) => c.id)).not.toContain(caseId);
     expect(otherKpi.body.data.users).toEqual([]);
   });
 

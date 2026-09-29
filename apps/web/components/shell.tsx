@@ -15,6 +15,7 @@ import {
   Plus,
   Search,
   ShieldCheck,
+  ShieldPlus,
   UserMinus,
   UserRound,
   Users,
@@ -50,6 +51,7 @@ export const NAV: { group: string; items: NavItem[] }[] = [
       { href: '/inactive-partners', label: 'Inactive Partners', icon: UserMinus, perm: 'USER_VIEW', roles: ['ADMIN', 'EXECUTIVE'] },
       { href: '/kyc', label: 'First Payout KYC', icon: ShieldCheck, perm: 'KYC_VIEW', roles: ['ADMIN', 'EXECUTIVE'] },
       { href: '/payouts', label: 'Payout', icon: Wallet, perm: 'PAYOUT_VIEW' },
+      { href: '/insurance', label: 'Insurance', icon: ShieldPlus, perm: 'INSURANCE_UPDATE', roles: ['ADMIN', 'EXECUTIVE'] },
     ],
   },
   {
