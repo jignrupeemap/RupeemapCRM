@@ -14,6 +14,8 @@ export interface ReportResult {
   rows: Record<string, unknown>[];
   totals?: Record<string, number>;
   truncated?: boolean;
+  /** Total rows when only the first page was built (on-screen view). */
+  rowCount?: number;
 }
 
 const blank = (v: unknown) => (v === '' || v === null ? undefined : v);
@@ -66,11 +68,12 @@ export class ReportEngine {
     private readonly scope: ScopeService,
   ) {}
 
-  async run(user: AuthUser, key: string, f: ReportFilter): Promise<ReportResult> {
+  /** `screenRows`: build only the rows shown on screen (totals still cover everything). */
+  async run(user: AuthUser, key: string, f: ReportFilter, screenRows?: number): Promise<ReportResult> {
     if (!canRun(user, key)) throw forbidden('You cannot open this report');
     switch (key) {
       case 'cases':
-        return this.cases(user, f);
+        return this.cases(user, f, screenRows);
       case 'dsa-performance':
         return this.performance(user, f, 'DSA');
       case 'team-performance':
@@ -124,7 +127,12 @@ export class ReportEngine {
     return new Map(users.map((u) => [u.id, u]));
   }
 
-  private async cases(user: AuthUser, f: ReportFilter): Promise<ReportResult> {
+  private async cases(user: AuthUser, f: ReportFilter, screenRows?: number): Promise<ReportResult> {
+    const limit = screenRows ?? MAX_ROWS;
+    // On screen: count and total everything in the database, but load only the rows shown.
+    const whole = screenRows
+      ? await this.prisma.loanCase.aggregate({ where: this.caseWhere(user, f), _count: true, _sum: { appliedAmount: true, sanctionAmount: true, disbursedTotal: true, handoverAmount: true } })
+      : null;
     const rows = await this.prisma.loanCase.findMany({
       where: this.caseWhere(user, f),
       select: {
@@ -132,10 +140,10 @@ export class ReportEngine {
         customer: { select: { name: true } }, bank: { select: { name: true } }, project: { select: { name: true } },
       },
       orderBy: { createdAt: 'desc' },
-      take: MAX_ROWS + 1,
+      take: limit + 1,
     });
     const people = await this.names(rows.flatMap((r) => [r.dsaId, r.teamPartnerId]));
-    const out = rows.slice(0, MAX_ROWS).map((r) => ({
+    const out = rows.slice(0, limit).map((r) => ({
       caseNo: r.caseNo,
       customer: r.customer.name,
       loanType: r.loanType.replace(/_/g, ' ').toLowerCase().replace(/^\w/, (x) => x.toUpperCase()),
@@ -161,8 +169,11 @@ export class ReportEngine {
         { key: 'handover', label: 'Handover', type: 'money' }, { key: 'loanAccount', label: 'Loan account' }, { key: 'loggedIn', label: 'Login date', type: 'date' }, { key: 'daysInStage', label: 'Days in stage', type: 'number' },
       ],
       rows: out,
-      totals: { applied: sum(out, 'applied'), sanctioned: sum(out, 'sanctioned'), disbursed: sum(out, 'disbursed'), handover: sum(out, 'handover') },
-      truncated: rows.length > MAX_ROWS,
+      totals: whole
+        ? { applied: n(whole._sum.appliedAmount), sanctioned: n(whole._sum.sanctionAmount), disbursed: n(whole._sum.disbursedTotal), handover: n(whole._sum.handoverAmount) }
+        : { applied: sum(out, 'applied'), sanctioned: sum(out, 'sanctioned'), disbursed: sum(out, 'disbursed'), handover: sum(out, 'handover') },
+      truncated: !screenRows && rows.length > MAX_ROWS,
+      ...(whole ? { rowCount: whole._count } : {}),
     };
   }
 
@@ -182,22 +193,20 @@ export class ReportEngine {
       GROUP BY ${who}
       ORDER BY logins DESC`;
     // Payouts are dated by when they were created, as on the dashboard and the Payout page.
+    // Added up in the database, one row per person and payout role.
     const { from, to, ...caseF } = f;
-    const payouts = await this.prisma.payout.findMany({
-      where: {
-        AND: [
-          this.scope.payoutWhere(user),
-          { loanCase: this.caseWhere(user, caseF) },
-          by === 'DSA' ? { loanCase: { dsaId: { in: rows.map((r) => r.uid) } } } : { beneficiaryId: { in: rows.map((r) => r.uid) } },
-          from || to ? { createdAt: { gte: from, lte: to } } : {},
-        ],
-      },
-      select: { amount: true, beneficiaryId: true, beneficiaryRole: true, loanCase: { select: { dsaId: true } } },
-    });
-    const paid = (uid: string, role?: 'DSA' | 'TEAM_PARTNER') =>
-      payouts
-        .filter((p) => (by === 'DSA' ? p.loanCase.dsaId === uid : p.beneficiaryId === uid) && (!role || p.beneficiaryRole === role))
-        .reduce((a, p) => a + Number(p.amount), 0);
+    const payoutRows = await this.prisma.$queryRaw<{ uid: string; role: string; amt: number }[]>`
+      SELECT ${by === 'DSA' ? Prisma.sql`c.dsa_id` : Prisma.sql`p.beneficiary_user_id`}::text AS uid, p.beneficiary_role::text AS role, SUM(p.amount)::float AS amt
+      FROM payouts p JOIN loan_cases c ON c.id = p.case_id
+      WHERE ${this.caseSql(user, caseF)} AND ${this.scope.payoutSql(user)}
+        ${from ? Prisma.sql`AND p.created_at >= ${from}` : Prisma.empty} ${to ? Prisma.sql`AND p.created_at <= ${to}` : Prisma.empty}
+      GROUP BY 1, 2`;
+    const paidMap = new Map<string, number>();
+    for (const r of payoutRows) {
+      paidMap.set(`${r.uid}|${r.role}`, r.amt);
+      paidMap.set(r.uid, (paidMap.get(r.uid) ?? 0) + r.amt);
+    }
+    const paid = (uid: string, role?: 'DSA' | 'TEAM_PARTNER') => paidMap.get(role ? `${uid}|${role}` : uid) ?? 0;
     const people = await this.names(rows.map((r) => r.uid));
     const out = rows.map((r) => ({
       name: people.get(r.uid)?.name ?? '',

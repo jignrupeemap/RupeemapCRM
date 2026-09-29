@@ -12,6 +12,8 @@ import { REPORTS, ReportEngine, canRun, reportFilterSchema } from './report-engi
 import { toCsv, toXlsx } from './export';
 import { forbidden, notFound } from '../common/errors';
 
+const SCREEN_ROWS = 500;
+
 const SORTS = {
   logins: Prisma.sql`logins`,
   applied: Prisma.sql`applied_amount`,
@@ -64,9 +66,9 @@ export class ReportsController {
   @Get('run/:key')
   @RequirePermission('REPORT_VIEW')
   async run(@CurrentUser() user: AuthUser, @Param('key') key: string, @Query() q: unknown) {
-    const r = await this.engine.run(user, key, parse(reportFilterSchema, q));
-    // The screen shows the first 500 rows; exports carry them all.
-    return { ...r, rowCount: r.rows.length, rows: r.rows.slice(0, 500) };
+    const r = await this.engine.run(user, key, parse(reportFilterSchema, q), SCREEN_ROWS);
+    // The screen shows the first 500 rows; exports carry them all. Totals always cover every row.
+    return { ...r, rowCount: r.rowCount ?? r.rows.length, rows: r.rows.slice(0, SCREEN_ROWS) };
   }
 
   /** CSV or Excel of exactly what the report shows, limited to the caller's scope. Every export is audited. */

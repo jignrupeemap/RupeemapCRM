@@ -83,7 +83,7 @@ export class DashboardController {
       handoverAmount: Number(p._sum.handoverAmount ?? 0),
     }));
 
-    const trend = await this.trend(caseWhere);
+    const trend = await this.trend(user, f);
     // Insurance commission is Rupeemap's alone: staff dashboards only, never in partner payout totals.
     const insurance = await this.insurance.summary(user, { from: f.from, to: f.to });
     const recovery = can(user, 'RECOVERY_VIEW') ? await this.recovery.outstanding(user) : null;
@@ -225,28 +225,37 @@ export class DashboardController {
   }
 
   /** Logins and handover amount per month for the last 6 months. */
-  private async trend(where: Prisma.LoanCaseWhereInput) {
+  private async trend(user: AuthUser, f: z.infer<typeof filterSchema>) {
     // Months follow Indian time: a case logged at 1 am IST on the 1st belongs to the new month.
     const IST = 330 * 60_000;
     const nowIst = new Date(Date.now() + IST);
     const since = new Date(Date.UTC(nowIst.getUTCFullYear(), nowIst.getUTCMonth() - 5, 1) - IST);
-    const rows = await this.prisma.loanCase.findMany({
-      where: { AND: [where, { createdAt: { gte: since } }] },
-      select: { createdAt: true, status: true, handoverAmount: true },
-    });
+    // Counted in the database (one row per month), not by loading every case.
+    const cond = [
+      Prisma.sql`c.deleted_at IS NULL`,
+      this.scope.caseSql(user),
+      Prisma.sql`c.created_at >= ${since}`,
+      f.from ? Prisma.sql`c.created_at >= ${f.from}` : Prisma.sql`TRUE`,
+      f.to ? Prisma.sql`c.created_at <= ${f.to}` : Prisma.sql`TRUE`,
+      f.bankId ? Prisma.sql`c.bank_id = ${f.bankId}::uuid` : Prisma.sql`TRUE`,
+      f.projectId ? Prisma.sql`c.project_id = ${f.projectId}::uuid` : Prisma.sql`TRUE`,
+      f.dsaId ? Prisma.sql`c.dsa_id = ${f.dsaId}::uuid` : Prisma.sql`TRUE`,
+      f.loanType ? Prisma.sql`c.loan_type = ${f.loanType}` : Prisma.sql`TRUE`,
+    ];
+    const grouped = await this.prisma.$queryRaw<{ month: string; logins: number; handovers: number; amt: number }[]>`
+      SELECT to_char(c.created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata', 'YYYY-MM') AS month,
+             COUNT(*)::int AS logins,
+             COUNT(*) FILTER (WHERE c.status = 'HANDOVER')::int AS handovers,
+             COALESCE(SUM(c.handover_amount) FILTER (WHERE c.status = 'HANDOVER'), 0)::float AS amt
+      FROM loan_cases c WHERE ${Prisma.join(cond, ' AND ')} GROUP BY 1`;
     const months: { month: string; logins: number; handovers: number; handoverAmount: number }[] = [];
     for (let i = 0; i < 6; i++) {
       const d = new Date(Date.UTC(nowIst.getUTCFullYear(), nowIst.getUTCMonth() - 5 + i, 1));
       months.push({ month: d.toISOString().slice(0, 7), logins: 0, handovers: 0, handoverAmount: 0 });
     }
-    for (const r of rows) {
-      const m = months.find((x) => x.month === new Date(r.createdAt.getTime() + IST).toISOString().slice(0, 7));
-      if (!m) continue;
-      m.logins++;
-      if (r.status === 'HANDOVER') {
-        m.handovers++;
-        m.handoverAmount += Number(r.handoverAmount ?? 0);
-      }
+    for (const g of grouped) {
+      const m = months.find((x) => x.month === g.month);
+      if (m) Object.assign(m, { logins: g.logins, handovers: g.handovers, handoverAmount: g.amt });
     }
     return months;
   }

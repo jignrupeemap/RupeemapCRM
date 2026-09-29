@@ -527,6 +527,8 @@ model LoanCase {
   @@index([bankId])
   @@index([projectId])
   @@index([loanAccountNo])
+  @@index([createdAt(sort: Desc)])
+  @@index([status, statusChangedAt])
   @@map("loan_cases")
 }
 
@@ -655,6 +657,7 @@ model Payout {
   @@unique([caseId, beneficiaryId])
   @@index([status])
   @@index([beneficiaryId, status])
+  @@index([createdAt(sort: Desc)])
   @@map("payouts")
 }
 

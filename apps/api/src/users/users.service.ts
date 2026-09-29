@@ -184,11 +184,16 @@ export class UsersService {
     const from = period.from ? Prisma.sql`AND c.created_at >= ${period.from}` : Prisma.empty;
     const to = period.to ? Prisma.sql`AND c.created_at <= ${period.to}` : Prisma.empty;
     const rows = await this.prisma.$queryRaw<{ uid: string; status: string; n: bigint; amt: Prisma.Decimal | null }[]>`
-      SELECT u.uid, c.status::text AS status, count(*) AS n, sum(c.handover_amount) AS amt
-      FROM loan_cases c
-      JOIN LATERAL (VALUES (c.dsa_id), (c.team_partner_id)) AS u(uid) ON u.uid IS NOT NULL
-      WHERE c.deleted_at IS NULL AND u.uid = ANY(${ids}::uuid[]) ${from} ${to}
-      GROUP BY u.uid, c.status`;
+      SELECT uid, status, sum(n) AS n, sum(amt) AS amt FROM (
+        -- Two indexed look-ups (DSA teams, Team Partners) instead of scanning every case.
+        SELECT c.dsa_id AS uid, c.status::text AS status, count(*) AS n, sum(c.handover_amount) AS amt
+        FROM loan_cases c WHERE c.deleted_at IS NULL AND c.dsa_id = ANY(${ids}::uuid[]) ${from} ${to}
+        GROUP BY 1, 2
+        UNION ALL
+        SELECT c.team_partner_id, c.status::text, count(*), sum(c.handover_amount)
+        FROM loan_cases c WHERE c.deleted_at IS NULL AND c.team_partner_id = ANY(${ids}::uuid[]) ${from} ${to}
+        GROUP BY 1, 2
+      ) x GROUP BY uid, status`;
     for (const r of rows) {
       const s = map.get(r.uid) ?? emptyStats();
       s.total += Number(r.n);
