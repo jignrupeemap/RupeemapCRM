@@ -276,3 +276,27 @@ export const recoveryReceiptSchema = z.object({
   receivedOn: z.coerce.date(),
   reference: z.string().trim().max(80).optional().or(z.literal('').transform(() => undefined)),
 });
+
+export const ticketCreateSchema = z
+  .object({
+    kind: z.enum(['QUERY', 'ASSISTANCE']),
+    category: z.string().trim().min(1, 'Choose a category').max(40),
+    caseId: z.preprocess(blankToUndefined, z.string().uuid().optional()),
+    subject: z.string().trim().min(3, 'Enter a short subject').max(160),
+    description: z.string().trim().min(3, 'Describe the problem').max(4000),
+    priority: z.enum(['LOW', 'NORMAL', 'HIGH', 'URGENT']).default('NORMAL'),
+  })
+  .refine((v) => v.kind !== 'ASSISTANCE' || !!v.caseId, { message: 'Choose the case you need help with', path: ['caseId'] });
+
+export const ticketReplySchema = z.object({
+  body: z.string().trim().min(1, 'Write a message').max(4000),
+  internal: z.boolean().default(false),
+});
+
+export const ticketUpdateSchema = z.object({
+  version: z.number().int().nonnegative(),
+  status: z.enum(['OPEN', 'ASSIGNED', 'IN_PROGRESS', 'WAITING', 'RESOLVED', 'CLOSED']).optional(),
+  assignedToId: z.preprocess(blankToUndefined, z.string().uuid().optional()),
+  priority: z.enum(['LOW', 'NORMAL', 'HIGH', 'URGENT']).optional(),
+  note: z.string().trim().max(1000).optional(),
+});

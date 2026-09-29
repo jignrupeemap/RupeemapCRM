@@ -1,14 +1,12 @@
-import { Clock3 } from 'lucide-react';
+'use client';
 import { PageHeader } from '@/components/shell';
-import { Card, EmptyState } from '@/components/ui';
+import { TicketsView } from '@/components/tickets';
 
 export default function Page() {
   return (
     <div>
-      <PageHeader title="Need Assistance" />
-      <Card>
-        <EmptyState icon={<Clock3 className="h-6 w-6" />} title="Arriving in Phase 13" body="Ask for help on a specific case. Executives assign, reply and resolve with full history." />
-      </Card>
+      <PageHeader title="Need Assistance" sub="Help with a specific case: documents, bank login, sanction or disbursement delays. Rupeemap assigns it to an executive and replies here." />
+      <TicketsView kind="ASSISTANCE" />
     </div>
   );
 }

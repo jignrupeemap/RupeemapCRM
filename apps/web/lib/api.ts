@@ -69,6 +69,13 @@ export const api = {
   patch: async <T>(path: string, body?: unknown, headers?: Record<string, string>) => (await call<T>('PATCH', path, body ?? {}, headers)).data,
   put: async <T>(path: string, body?: unknown) => (await call<T>('PUT', path, body ?? {})).data,
   del: async <T>(path: string) => (await call<T>('DELETE', path)).data,
+  /** Multipart POST with text fields and an optional file. */
+  form: async <T>(path: string, fields: Record<string, string>, file?: File | null) => {
+    const form = new FormData();
+    for (const [k, v] of Object.entries(fields)) form.append(k, v);
+    if (file) form.append('file', file);
+    return (await call<T>('POST', path, form)).data;
+  },
   upload: async <T>(path: string, file: File, field = 'file') => {
     const form = new FormData();
     form.append(field, file);

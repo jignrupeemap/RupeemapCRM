@@ -69,6 +69,28 @@ enum RecoveryStatus {
   CLOSED
 }
 
+/// Raise Query (PART 45) and Need Assistance for a case (PART 46) share one ticket model.
+enum TicketKind {
+  QUERY
+  ASSISTANCE
+}
+
+enum TicketStatus {
+  OPEN
+  ASSIGNED
+  IN_PROGRESS
+  WAITING
+  RESOLVED
+  CLOSED
+}
+
+enum TicketPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
 enum KycStatus {
   DOCUMENTS_PENDING
   UPLOADED
@@ -302,6 +324,7 @@ model Document {
   createdAt    DateTime  @default(now()) @map("created_at")
   deletedAt    DateTime? @map("deleted_at")
   kyc          KycDocument?
+  ticketMessage TicketMessage?
   accessLogs   DocumentAccessLog[]
 
   @@map("documents")
@@ -493,6 +516,7 @@ model LoanCase {
   payouts           Payout[]
   checklist         CaseChecklistItem[]
   insurance         InsurancePolicy[]
+  tickets           Ticket[]
 
   @@index([dsaId, createdAt(sort: Desc)])
   @@index([teamPartnerId, createdAt(sort: Desc)])
@@ -772,6 +796,66 @@ model RecoveryHistory {
 }
 
 // ───────────── Communication & content ─────────────
+
+model Ticket {
+  id           String         @id @default(uuid()) @db.Uuid
+  ticketNo     String         @unique @map("ticket_no") // Q-2026-000001 / A-2026-000001
+  kind         TicketKind
+  category     String
+  caseId       String?        @map("case_id") @db.Uuid
+  subject      String
+  priority     TicketPriority @default(NORMAL)
+  status       TicketStatus   @default(OPEN)
+  createdById  String         @map("created_by") @db.Uuid
+  createdRole  Role           @map("created_role")
+  /// The DSA whose team raised it, so a DSA can follow their Team Partners' tickets.
+  dsaId        String?        @map("dsa_id") @db.Uuid
+  assignedToId String?        @map("assigned_to") @db.Uuid
+  version      Int            @default(0)
+  lastActivityAt DateTime     @default(now()) @map("last_activity_at")
+  resolvedAt   DateTime?      @map("resolved_at")
+  closedAt     DateTime?      @map("closed_at")
+  createdAt    DateTime       @default(now()) @map("created_at")
+  updatedAt    DateTime       @updatedAt @map("updated_at")
+  loanCase     LoanCase?      @relation(fields: [caseId], references: [id])
+  messages     TicketMessage[]
+
+  @@index([kind, status, lastActivityAt(sort: Desc)])
+  @@index([createdById])
+  @@index([dsaId])
+  @@index([assignedToId, status])
+  @@index([caseId])
+  @@map("tickets")
+}
+
+/// Conversation on a ticket. Internal notes are visible to Rupeemap staff only.
+model TicketMessage {
+  id           String   @id @default(uuid()) @db.Uuid
+  ticketId     String   @map("ticket_id") @db.Uuid
+  authorId     String   @map("author_id") @db.Uuid
+  authorName   String   @map("author_name")
+  authorRole   Role     @map("author_role")
+  body         String
+  internal     Boolean  @default(false)
+  event        String?  // STATUS, ASSIGNED: system lines in the thread
+  documentId   String?  @unique @map("document_id") @db.Uuid
+  createdAt    DateTime @default(now()) @map("created_at")
+  ticket       Ticket   @relation(fields: [ticketId], references: [id])
+  document     Document? @relation(fields: [documentId], references: [id])
+
+  @@index([ticketId, createdAt])
+  @@map("ticket_messages")
+}
+
+model TicketCounter {
+  kind    TicketKind
+  year    Int
+  lastSeq Int @default(0) @map("last_seq")
+
+  @@id([kind, year])
+  @@map("ticket_counters")
+}
+
 
 model Notification {
   id          String   @id @default(uuid()) @db.Uuid

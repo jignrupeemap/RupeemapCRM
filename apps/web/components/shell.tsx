@@ -68,8 +68,8 @@ export const NAV: { group: string; items: NavItem[] }[] = [
   {
     group: 'Support',
     items: [
-      { href: '/queries', label: 'Raise Query', icon: HelpCircle, perm: 'QUERY_CREATE', soon: true },
-      { href: '/assistance', label: 'Need Assistance', icon: LifeBuoy, perm: 'SUPPORT_CREATE', soon: true },
+      { href: '/queries', label: 'Raise Query', icon: HelpCircle, perm: 'QUERY_CREATE' },
+      { href: '/assistance', label: 'Need Assistance', icon: LifeBuoy, perm: 'SUPPORT_CREATE' },
       { href: '/audit', label: 'Audit Log', icon: ShieldCheck, perm: 'AUDIT_VIEW', soon: true },
     ],
   },

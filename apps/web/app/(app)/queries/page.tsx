@@ -1,14 +1,12 @@
-import { Clock3 } from 'lucide-react';
+'use client';
 import { PageHeader } from '@/components/shell';
-import { Card, EmptyState } from '@/components/ui';
+import { TicketsView } from '@/components/tickets';
 
 export default function Page() {
   return (
     <div>
-      <PageHeader title="Raise Query" />
-      <Card>
-        <EmptyState icon={<Clock3 className="h-6 w-6" />} title="Arriving in Phase 13" body="Raise case, payout, recovery, bank, project or technical queries and follow replies from Rupeemap." />
-      </Card>
+      <PageHeader title="Raise Query" sub="Ask Rupeemap about a case, payout, recovery, bank, project or the app. Every reply is kept here." />
+      <TicketsView kind="QUERY" />
     </div>
   );
 }

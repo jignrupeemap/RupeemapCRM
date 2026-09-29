@@ -25,6 +25,8 @@ import { InsuranceController } from './insurance/insurance.controller';
 import { InsuranceService } from './insurance/insurance.service';
 import { BankersController } from './directory/bankers.controller';
 import { BankCodesController } from './directory/bank-codes.controller';
+import { TicketsController } from './tickets/tickets.controller';
+import { TicketsService } from './tickets/tickets.service';
 import { RecoveryController } from './recovery/recovery.controller';
 import { RecoveryService } from './recovery/recovery.service';
 
@@ -46,6 +48,7 @@ import { RecoveryService } from './recovery/recovery.service';
     InsuranceController,
     BankersController,
     BankCodesController,
+    TicketsController,
     RecoveryController,
   ],
   providers: [
@@ -57,6 +60,7 @@ import { RecoveryService } from './recovery/recovery.service';
     KycService,
     InsuranceService,
     RecoveryService,
+    TicketsService,
     { provide: APP_GUARD, useClass: AuthGuard },
     { provide: APP_INTERCEPTOR, useClass: EnvelopeInterceptor },
     { provide: APP_FILTER, useClass: GlobalExceptionFilter },

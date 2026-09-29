@@ -74,6 +74,11 @@ export default function DashboardPage() {
   const sliders = useQuery({ queryKey: ['sliders'], queryFn: () => api.get<Slide[]>('/sliders/active'), staleTime: 300_000 });
   const summary = useQuery({ queryKey: ['dashboard', params], queryFn: () => api.get<Summary>('/dashboard/summary', params), enabled: rangeReady, placeholderData: keepPreviousData });
   const isStaff = me?.role === 'ADMIN' || me?.role === 'EXECUTIVE';
+  const tickets = useQuery({
+    queryKey: ['tickets', 'counts'],
+    queryFn: () => api.get<Record<'QUERY' | 'ASSISTANCE', { open: number; waiting: number }>>('/tickets/counts'),
+    staleTime: 60_000,
+  });
   const inactivity = useQuery({
     queryKey: ['inactivity', 'summary'],
     queryFn: () => api.get<InactivitySummary>('/inactivity/summary'),
@@ -189,6 +194,19 @@ export default function DashboardPage() {
               <AttentionRow icon={<AlarmClock className="h-4 w-4" />} tone="red" label="Cases stuck more than 15 days in one stage" value={s.stuckCases} />
               <AttentionRow icon={<HelpCircle className="h-4 w-4" />} tone="gold" label="Cases in Query" value={s.cases.QUERY} />
               <AttentionRow icon={<Wallet className="h-4 w-4" />} tone="gold" label="Payouts on Hold" value={s.payouts.HOLD.count} />
+              {tickets.data && (
+                <li>
+                  <Link href={isStaff ? '/assistance' : '/queries'} className="-mx-2 flex items-center gap-3 rounded-xl px-2 py-1 hover:bg-ink-50">
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-goldsoft text-amber-700">
+                      <LifeBuoy className="h-4 w-4" />
+                    </span>
+                    <span className="flex-1 text-sm text-ink-700">{isStaff ? 'Queries and assistance to answer' : 'Replies from Rupeemap waiting for you'}</span>
+                    <span className="font-display text-lg font-bold tabular-nums">
+                      {isStaff ? tickets.data.QUERY.open + tickets.data.ASSISTANCE.open : tickets.data.QUERY.waiting + tickets.data.ASSISTANCE.waiting}
+                    </span>
+                  </Link>
+                </li>
+              )}
               {inactivity.data && (
                 <li>
                   <Link href="/inactive-partners" className="-mx-2 flex items-center gap-3 rounded-xl px-2 py-1 hover:bg-ink-50">

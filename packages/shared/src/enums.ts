@@ -204,3 +204,36 @@ export const RECOVERY_ACTIONS = {
   CLOSE: { label: 'Close', from: ['FULLY_RECOVERED', 'WAIVED'], to: 'CLOSED', adminOnly: false },
 } as const satisfies Record<string, { label: string; from: readonly RecoveryStatus[]; to: RecoveryStatus; adminOnly: boolean }>;
 export type RecoveryAction = keyof typeof RECOVERY_ACTIONS;
+
+/** Raise Query (PART 45) and Need Assistance (PART 46). */
+export const TICKET_KINDS = ['QUERY', 'ASSISTANCE'] as const;
+export type TicketKind = (typeof TICKET_KINDS)[number];
+export const TICKET_STATUSES = ['OPEN', 'ASSIGNED', 'IN_PROGRESS', 'WAITING', 'RESOLVED', 'CLOSED'] as const;
+export type TicketStatus = (typeof TICKET_STATUSES)[number];
+export const TICKET_STATUS_LABELS: Record<TicketStatus, string> = {
+  OPEN: 'Open',
+  ASSIGNED: 'Assigned',
+  IN_PROGRESS: 'In progress',
+  WAITING: 'Waiting for you',
+  RESOLVED: 'Resolved',
+  CLOSED: 'Closed',
+};
+export const TICKET_PRIORITIES = ['LOW', 'NORMAL', 'HIGH', 'URGENT'] as const;
+export type TicketPriority = (typeof TICKET_PRIORITIES)[number];
+export const QUERY_CATEGORIES = ['CASE', 'PAYOUT', 'RECOVERY', 'BANK', 'PROJECT', 'TECHNICAL', 'GENERAL'] as const;
+export const ASSISTANCE_TYPES = ['DOCUMENTS', 'BANK_LOGIN', 'SANCTION_DELAY', 'DISBURSEMENT', 'VALUATION_LEGAL', 'PAYOUT', 'OTHER'] as const;
+export const TICKET_CATEGORY_LABELS: Record<string, string> = {
+  CASE: 'Case',
+  PAYOUT: 'Payout',
+  RECOVERY: 'Recovery',
+  BANK: 'Bank',
+  PROJECT: 'Project',
+  TECHNICAL: 'Technical / app',
+  GENERAL: 'General',
+  DOCUMENTS: 'Documents',
+  BANK_LOGIN: 'Bank login / file',
+  SANCTION_DELAY: 'Sanction delay',
+  DISBURSEMENT: 'Disbursement',
+  VALUATION_LEGAL: 'Valuation / legal',
+  OTHER: 'Other',
+};
