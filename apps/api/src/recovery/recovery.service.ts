@@ -27,8 +27,8 @@ export const RECOVERY_WHATSAPP_TEMPLATE =
 /**
  * Recovery (PART 35–37): when a bank claws back a payout, Admin/Executives
  * record it, raise a demand on the partner and enter what the partner repays.
- * Outstanding is always demanded − received, never typed. Partners see their
- * own recoveries read-only.
+ * Outstanding is always demanded − received, never typed. Staff only: DSA
+ * Partners and Team Partners never see recoveries in their portal.
  */
 @Injectable()
 export class RecoveryService {
@@ -39,10 +39,7 @@ export class RecoveryService {
   ) {}
 
   private where(user: AuthUser): Prisma.RecoveryWhereInput {
-    if (!can(user, 'RECOVERY_VIEW')) return { id: '00000000-0000-0000-0000-000000000000' };
-    if (isStaff(user)) return {};
-    if (user.role === 'DSA') return { payout: { loanCase: { dsaId: user.id } } };
-    if (user.role === 'TEAM_PARTNER') return { beneficiaryId: user.id };
+    if (isStaff(user) && can(user, 'RECOVERY_VIEW')) return {};
     return { id: '00000000-0000-0000-0000-000000000000' };
   }
 
@@ -139,6 +136,8 @@ export class RecoveryService {
     this.assertManage(user);
     const p = await this.prisma.payout.findUnique({ where: { id: b.payoutId }, include: { loanCase: true } });
     if (!p || p.loanCase.deletedAt) throw notFound('Payout');
+    // A bank can only claw back money that was actually paid out.
+    if (p.status !== 'PAID') throw new AppError('INVALID_TRANSITION', 'A recovery can be recorded only against a payout that is Paid');
     if (b.recoveryAmount > Number(p.amount) && Number(p.amount) > 0) {
       throw new AppError('VALIDATION_ERROR', `Recovery cannot be more than the payout of ${formatINR(Number(p.amount))}`, { fields: { recoveryAmount: 'More than the payout' } });
     }
@@ -172,19 +171,7 @@ export class RecoveryService {
       const updated = await tx.recovery.update({ where: { id }, data });
       await this.history(tx, id, user, b.action, r.status as RecoveryStatus, def.to, { amountDemanded: b.amountDemanded, dueDate: b.dueDate }, b.reason);
       await this.audit.log(tx, user, { action: `RECOVERY_${b.action}`, entity: 'case', entityId: r.caseId, before: { status: r.status }, after: { status: def.to, amountDemanded: updated.amountDemanded, dueDate: updated.dueDate, reason: b.reason } }, meta);
-      if (b.action === 'RAISE_DEMAND' || b.action === 'WAIVE' || b.action === 'REJECT_DISPUTE') {
-        const c = await tx.loanCase.findUniqueOrThrow({ where: { id: r.caseId }, select: { caseNo: true, dsaId: true } });
-        await this.notify.toUsers(tx, [r.beneficiaryId, c.dsaId], {
-          title: b.action === 'WAIVE' ? `Recovery waived on ${c.caseNo}` : `Payout recovery due on ${c.caseNo}`,
-          body:
-            b.action === 'WAIVE'
-              ? `Rupeemap has waived the recovery on ${c.caseNo}. ${b.reason}`
-              : `The bank recovered the payout on ${c.caseNo}. Please pay ${formatINR(Number(updated.amountDemanded ?? 0))} by ${updated.dueDate?.toISOString().slice(0, 10)}. ${b.reason}`,
-          caseId: r.caseId,
-          priority: 'HIGH',
-          sentById: user.id,
-        });
-      }
+      // No in-app alerts to partners: recovery stays inside Rupeemap. Staff contact the partner directly (call / WhatsApp).
       return { id, status: updated.status, version: updated.version };
     });
   }

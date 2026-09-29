@@ -1,4 +1,4 @@
-/** Recovery: staff record clawbacks and demands; partners see their own read-only; outstanding is always computed. */
+/** Recovery: staff only. Admin and Executives record clawbacks on paid payouts; partners never see recovery; outstanding is always computed. */
 import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -34,28 +34,32 @@ afterAll(async () => {
 
 describe('Recovery', () => {
   let admin: any, exec: any, dsa: any, ravi: any, nisha: any;
-  let payoutId: string, payout2Id: string, recId: string, version = 0;
+  let payoutId: string, payout2Id: string, unpaidId: string, recId: string, version = 0;
 
   beforeAll(async () => {
     [admin, exec, dsa, ravi, nisha] = await Promise.all(['9000000001', '9000000002', '9000000003', '9000000004', '9000000005'].map(login));
     const mehul = await prisma.user.findUniqueOrThrow({ where: { mobile: '9000000003' } });
     const raviU = await prisma.user.findUniqueOrThrow({ where: { mobile: '9000000004' } });
     const bank = await prisma.bank.findFirstOrThrow();
-    const make = async (n: number) => {
+    const make = async (n: number, status: 'PAID' | 'PENDING' = 'PAID') => {
       const customer = await prisma.customer.create({ data: { name: `Recovery Customer ${n}`, mobile: '9811112222' } });
       const c = await prisma.loanCase.create({
         data: { caseNo: `REC-TEST-${Date.now()}-${n}`, customerId: customer.id, loanType: 'HOME_LOAN', appliedAmount: 2000000, handoverAmount: 2000000, status: 'HANDOVER', bankId: bank.id, dsaId: mehul.id, teamPartnerId: raviU.id, createdById: raviU.id, createdRole: 'TEAM_PARTNER' },
       });
-      const p = await prisma.payout.create({ data: { caseId: c.id, beneficiaryId: raviU.id, beneficiaryRole: 'TEAM_PARTNER', baseAmount: 2000000, percentSnapshot: 0.5, amount: 10000, status: 'PAID' } });
+      const p = await prisma.payout.create({ data: { caseId: c.id, beneficiaryId: raviU.id, beneficiaryRole: 'TEAM_PARTNER', baseAmount: 2000000, percentSnapshot: 0.5, amount: 10000, status } });
       return p.id;
     };
     payoutId = await make(1);
     payout2Id = await make(2);
+    unpaidId = await make(3, 'PENDING');
   });
 
-  it('only staff can record a recovery, never more than the payout', async () => {
+  it('only staff can record a recovery, only on a paid payout, never more than the payout', async () => {
     const body = { payoutId, recoveryAmount: 10000, recoveryDate: today, bankRemarks: 'Loan foreclosed in 3 months', reason: 'Bank clawback' };
     expect((await dsa.post('/api/v1/recoveries').set(H).send(body)).status).toBe(403);
+    expect((await ravi.post('/api/v1/recoveries').set(H).send(body)).status).toBe(403);
+    const unpaid = await exec.post('/api/v1/recoveries').set(H).send({ ...body, payoutId: unpaidId });
+    expect(unpaid.body.code).toBe('INVALID_TRANSITION');
     expect((await exec.post('/api/v1/recoveries').set(H).send({ ...body, recoveryAmount: 12000 })).body.code).toBe('VALIDATION_ERROR');
     const r = await exec.post('/api/v1/recoveries').set(H).send(body);
     expect(r.status, JSON.stringify(r.body)).toBe(201);
@@ -63,22 +67,28 @@ describe('Recovery', () => {
     version = r.body.data.version;
   });
 
-  it('a demand needs a due date and notifies the partner and their DSA', async () => {
+  it('a demand needs a due date; partners get no recovery alert in the app', async () => {
     const noDue = await exec.post(`/api/v1/recoveries/${recId}/actions`).set(H).send({ action: 'RAISE_DEMAND', version, reason: 'Please repay' });
     expect(noDue.body.code).toBe('VALIDATION_ERROR');
     const r = await exec.post(`/api/v1/recoveries/${recId}/actions`).set(H).send({ action: 'RAISE_DEMAND', version, reason: 'Please repay', dueDate: due });
     expect(r.status, JSON.stringify(r.body)).toBe(201);
     version = r.body.data.version;
     const raviU = await prisma.user.findUniqueOrThrow({ where: { mobile: '9000000004' } });
-    expect(await prisma.notificationRecipient.count({ where: { userId: raviU.id, notification: { title: { startsWith: 'Payout recovery due' } } } })).toBeGreaterThan(0);
+    const mehulU = await prisma.user.findUniqueOrThrow({ where: { mobile: '9000000003' } });
+    const recoveryAlerts = { notification: { caseId: (await prisma.recovery.findUniqueOrThrow({ where: { id: recId } })).caseId } };
+    expect(await prisma.notificationRecipient.count({ where: { userId: { in: [raviU.id, mehulU.id] }, ...recoveryAlerts } })).toBe(0);
   });
 
-  it('partners see their own recovery read-only; other Team Partners never see it', async () => {
-    const mine = await ravi.get('/api/v1/recoveries');
-    expect(mine.body.data.map((x: any) => x.id)).toContain(recId);
-    expect(mine.body.data.find((x: any) => x.id === recId).outstanding).toBe(10000);
-    expect((await dsa.get(`/api/v1/recoveries/${recId}`)).status).toBe(200);
-    expect((await nisha.get(`/api/v1/recoveries/${recId}`)).status).toBe(404);
+  it('DSA Partners and Team Partners never see recovery: list, detail, dashboard or report', async () => {
+    for (const who of [ravi, dsa, nisha]) {
+      expect((await who.get('/api/v1/recoveries')).status).toBe(403);
+      expect((await who.get(`/api/v1/recoveries/${recId}`)).status).toBe(403);
+      expect((await who.get('/api/v1/dashboard/summary')).body.data.recovery).toBeNull();
+      expect((await who.get('/api/v1/reports')).body.data.map((r: any) => r.key)).not.toContain('recovery');
+      expect((await who.get('/api/v1/reports/run/recovery')).status).toBe(403);
+    }
+    const staffView = await exec.get('/api/v1/recoveries');
+    expect(staffView.body.data.find((x: any) => x.id === recId).outstanding).toBe(10000);
     expect((await ravi.post(`/api/v1/recoveries/${recId}/receipts`).set(H).send({ version, amount: 100, receivedOn: today })).status).toBe(403);
     expect((await dsa.post(`/api/v1/recoveries/${recId}/actions`).set(H).send({ action: 'WAIVE', version, reason: 'Please waive' })).status).toBe(403);
   });

@@ -42,7 +42,7 @@ export const REPORTS: { key: string; label: string; who: 'all' | 'dsa+staff' | '
   { key: 'team-performance', label: 'Team Partner performance', who: 'dsa+staff' },
   { key: 'banks', label: 'Bank report', who: 'all' },
   { key: 'payouts', label: 'Payout report', who: 'all' },
-  { key: 'recovery', label: 'Recovery report', who: 'all' },
+  { key: 'recovery', label: 'Recovery report', who: 'staff' },
   { key: 'insurance', label: 'Insurance report', who: 'staff' },
   { key: 'queries', label: 'Query and assistance report', who: 'all' },
   { key: 'executive-activity', label: 'Executive activity', who: 'admin' },

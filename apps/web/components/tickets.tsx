@@ -186,7 +186,9 @@ function RaiseModal({ kind, caseId, onClose, onCreated }: { kind: TicketKind; ca
     onError: (e: ApiError) => (setErrors(e.fields), toast.error(e.message)),
   });
   const set = (k: keyof typeof v, val: string) => (setV((x) => ({ ...x, [k]: val })), setErrors((e) => ({ ...e, [k]: '' })));
-  const categories = kind === 'QUERY' ? QUERY_CATEGORIES : ASSISTANCE_TYPES;
+  const can = useCan();
+  // Recovery is a staff-only matter; partners do not see it as a topic.
+  const categories = kind === 'QUERY' ? QUERY_CATEGORIES.filter((c) => c !== 'RECOVERY' || can('RECOVERY_VIEW')) : ASSISTANCE_TYPES;
   return (
     <Modal
       open

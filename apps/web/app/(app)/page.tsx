@@ -204,12 +204,14 @@ export default function DashboardPage() {
               <Kpi label="Reject" value={s.cases.REJECT} tone={s.cases.REJECT ? 'red' : 'neutral'} href={withRange('/cases?status=REJECT', params)} />
               <Kpi label="Withdraw" value={s.cases.WITHDRAW} href={withRange('/cases?status=WITHDRAW', params)} />
             </div>
-            <div className={cx('grid grid-cols-2 gap-3 sm:grid-cols-4', s.insurance ? 'lg:grid-cols-6' : 'lg:grid-cols-5')}>
+            <div className={cx('grid grid-cols-2 gap-3 sm:grid-cols-4', ['', '', '', '', 'lg:grid-cols-4', 'lg:grid-cols-5', 'lg:grid-cols-6'][4 + (s.recovery ? 1 : 0) + (s.insurance ? 1 : 0)])}>
               <Kpi label="Pending payout" value={formatINRCompact(s.payouts.PENDING.amount)} sub={`${s.payouts.PENDING.count} payouts`} tone="gold" href={withRange('/payouts?status=PENDING', params)} />
               <Kpi label="Confirmed" value={formatINRCompact(s.payouts.CONFIRMED.amount)} sub={`${s.payouts.CONFIRMED.count} payouts`} href={withRange('/payouts?status=CONFIRMED', params)} />
               <Kpi label="Paid" value={formatINRCompact(s.payouts.PAID.amount)} sub={`${s.payouts.PAID.count} payouts`} tone="teal" href={withRange('/payouts?status=PAID', params)} />
               <Kpi label="Hold" value={formatINRCompact(s.payouts.HOLD.amount)} sub={`${s.payouts.HOLD.count} payouts`} tone={s.payouts.HOLD.count ? 'red' : 'neutral'} href={withRange('/payouts?status=HOLD', params)} />
-              <Kpi label="Recovery outstanding" value={formatINRCompact(s.recovery?.amount ?? 0)} sub={`${s.recovery?.count ?? 0} open`} tone={s.recovery?.amount ? 'red' : 'neutral'} href="/recovery" />
+              {s.recovery && (
+                <Kpi label="Recovery outstanding" value={formatINRCompact(s.recovery.amount)} sub={`${s.recovery.count} open`} tone={s.recovery.amount ? 'red' : 'neutral'} href="/recovery" />
+              )}
               {s.insurance && (
                 <Kpi label="Insurance payout (Rupeemap)" value={formatINRCompact(s.insurance.total)} sub={`${formatINRCompact(s.insurance.received)} received · ${s.insurance.policies} policies`} tone="teal" href="/insurance" />
               )}

@@ -24,7 +24,7 @@ import { CaseActionBar } from '@/components/case-actions';
 import { CaseChecklistTab } from '@/components/checklist';
 import { PayoutAdjustModal } from '@/components/payout-adjust';
 import { CaseInsuranceTab } from '@/components/insurance';
-import { RecoveryList } from '@/components/recovery';
+import { RecordRecoveryModal, RecoveryList } from '@/components/recovery';
 import { TicketsView } from '@/components/tickets';
 import { Badge, Banner, Button, Card, cx, DetailGrid, EmptyState, ErrorState, Field, Input, Modal, PayoutChip, Select, Skeleton, StatusChip, Tab, TabList, TabPanel, Tabs, Textarea } from '@/components/ui';
 
@@ -160,7 +160,7 @@ export default function CaseDetailPage() {
           <Tab value="documents">Documents</Tab>
           <Tab value="checklist">Checklist</Tab>
           <Tab value="insurance">Insurance</Tab>
-          <Tab value="recovery">Recovery</Tab>
+          {me?.permissions.includes('RECOVERY_VIEW') && <Tab value="recovery">Recovery</Tab>}
           <Tab value="assistance">Assistance</Tab>
           {me?.permissions.includes('AUDIT_VIEW') && <Tab value="audit">Audit</Tab>}
         </TabList>
@@ -296,9 +296,11 @@ export default function CaseDetailPage() {
             <TicketsView kind="ASSISTANCE" caseId={c.id} embedded />
           </TabPanel>
 
-          <TabPanel value="recovery">
-            <RecoveryList caseId={c.id} />
-          </TabPanel>
+          {me?.permissions.includes('RECOVERY_VIEW') && (
+            <TabPanel value="recovery">
+              <CaseRecovery c={c} canRecord={(me.role === 'ADMIN' || me.role === 'EXECUTIVE') && me.permissions.includes('RECOVERY_UPDATE')} />
+            </TabPanel>
+          )}
 
           <TabPanel value="insurance">
             <CaseInsuranceTab caseId={c.id} closed={closed} />
@@ -493,6 +495,39 @@ function RemarksTab({ c, disabled }: { c: CaseDetail; disabled: boolean }) {
       )}
       {c.remarks.length ? <RemarkList items={c.remarks} /> : <EmptyState title="No remarks yet" />}
     </Card>
+  );
+}
+
+/** Staff only: record a bank recovery against any paid payout on this case, then follow it up below. */
+function CaseRecovery({ c, canRecord }: { c: CaseDetail; canRecord: boolean }) {
+  const [recording, setRecording] = useState<CaseDetail['payouts'][number] | null>(null);
+  const paid = c.payouts.filter((p) => p.status === 'PAID');
+  return (
+    <div className="space-y-4">
+      {canRecord && (
+        <Card className="p-4">
+          <p className="text-sm font-semibold text-ink">Record a bank recovery</p>
+          {paid.length ? (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {paid.map((p) => (
+                <Button key={p.id} size="sm" variant="secondary" className="text-brand-red" onClick={() => setRecording(p)}>
+                  {ROLE_LABELS[p.beneficiaryRole]} · {p.beneficiary?.name} · {formatINR(p.amount)}
+                </Button>
+              ))}
+            </div>
+          ) : (
+            <p className="mt-1 text-sm text-ink-500">A recovery can be recorded once a payout on this case is Paid.</p>
+          )}
+        </Card>
+      )}
+      <RecoveryList caseId={c.id} />
+      {recording && (
+        <RecordRecoveryModal
+          payout={{ id: recording.id, amount: String(recording.amount), beneficiary: recording.beneficiary, caseNo: c.caseNo }}
+          onClose={() => setRecording(null)}
+        />
+      )}
+    </div>
   );
 }
 

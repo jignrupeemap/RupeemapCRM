@@ -81,6 +81,8 @@ export const PARTNER_FORBIDDEN: Permission[] = [
   'KYC_VERIFY',
   'INSURANCE_UPDATE',
   'RECOVERY_UPDATE',
+  // Recovery is handled by Rupeemap staff only; partners never see it in their portal.
+  'RECOVERY_VIEW',
   'CASE_FINANCIAL_CORRECTION',
   'CASE_VIEW_ALL',
   'USER_CREATE_DSA',
@@ -99,7 +101,6 @@ const PARTNER_COMMON: Permission[] = [
   'PAYOUT_VIEW',
   'KYC_VIEW',
   'INSURANCE_VIEW',
-  'RECOVERY_VIEW',
   'PROJECT_VIEW',
   'CHECKLIST_VIEW',
   'BANK_VIEW',
