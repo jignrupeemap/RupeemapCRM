@@ -41,6 +41,8 @@ interface InactivitySummary {
 
 interface Summary {
   cases: Record<string, number> & { total: number };
+  /** Cases that reached each stage, wherever they are now (same count as the reports). */
+  reached: { sanction: number; disbursed: number; handover: number };
   amounts: { applied: number; sanctioned: number; disbursed: number; handover: number };
   conversion: { sanction: number; disbursed: number; handover: number };
   payouts: Record<string, { count: number; amount: number }>;
@@ -167,7 +169,10 @@ export default function DashboardPage() {
 
       <section aria-label="Key numbers" className="space-y-3">
         <div className="flex flex-wrap items-start justify-between gap-2">
-          <h2 className="pt-1.5 font-display text-[17px] font-bold">{isAdmin ? 'Organisation overview' : me.role === 'DSA' ? 'You and your team' : 'Your cases'}</h2>
+          <div>
+            <h2 className="pt-1.5 font-display text-[17px] font-bold">{isAdmin ? 'Organisation overview: all DSA Partners and Team Partners' : me.role === 'DSA' ? 'You and your team' : 'Your cases'}</h2>
+            <p className="text-xs text-ink-500">Sanctioned and Disbursed include cases that have since moved further, the same way the reports count.</p>
+          </div>
           <DateRangeFilter value={range} onChange={setRange} />
         </div>
         {!s ? (
@@ -179,10 +184,21 @@ export default function DashboardPage() {
         ) : (
           <>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8">
-              <Kpi label="Total cases" value={s.cases.total} sub={formatINRCompact(s.amounts.applied) + ' applied'} href={withRange('/cases', params)} />
-              <Kpi label="Login" value={s.cases.LOGIN} href={withRange('/cases?status=LOGIN', params)} />
-              <Kpi label="Sanction" value={s.cases.SANCTION} sub={`${s.conversion.sanction}% reached`} href={withRange('/cases?status=SANCTION', params)} />
-              <Kpi label="Disbursed" value={s.cases.DISBURSED} sub={formatINRCompact(s.amounts.disbursed)} tone="teal" href={withRange('/cases?status=DISBURSED', params)} />
+              <Kpi label="Total logins" value={s.cases.total} sub={formatINRCompact(s.amounts.applied) + ' applied'} href={withRange('/cases', params)} />
+              <Kpi label="Awaiting sanction" value={s.cases.LOGIN} sub="Still at Login" href={withRange('/cases?status=LOGIN', params)} />
+              <Kpi
+                label="Sanctioned"
+                value={s.reached.sanction}
+                sub={`${s.conversion.sanction}% of logins · ${s.cases.SANCTION} awaiting disbursal`}
+                href={withRange('/cases?status=SANCTION,DISBURSED,HANDOVER', params)}
+              />
+              <Kpi
+                label="Disbursed"
+                value={s.reached.disbursed}
+                sub={`${formatINRCompact(s.amounts.disbursed)} · ${s.cases.DISBURSED} awaiting handover`}
+                tone="teal"
+                href={withRange('/cases?status=DISBURSED,HANDOVER', params)}
+              />
               <Kpi label="Handover" value={s.cases.HANDOVER} sub={formatINRCompact(s.amounts.handover)} tone="teal" href={withRange('/cases?status=HANDOVER', params)} />
               <Kpi label="Query" value={s.cases.QUERY} tone={s.cases.QUERY ? 'gold' : 'neutral'} href={withRange('/cases?status=QUERY', params)} />
               <Kpi label="Reject" value={s.cases.REJECT} tone={s.cases.REJECT ? 'red' : 'neutral'} href={withRange('/cases?status=REJECT', params)} />

@@ -118,6 +118,32 @@ describe('Consolidated Admin figures', () => {
     expect(users.body.meta.total).toBe(active);
   });
 
+  it('the overview is never below any single DSA, and matches the DSA report', async () => {
+    for (const range of [{}, { from: new Date(Date.now() - 30 * 86_400_000).toISOString(), to: new Date().toISOString() }]) {
+      const [sum, partners, report] = await Promise.all([
+        admin.get('/api/v1/dashboard/summary').query(range),
+        admin.get('/api/v1/dashboard/partners').query(range),
+        admin.get('/api/v1/reports/run/dsa-performance').query(range),
+      ]);
+      const s = sum.body.data;
+      const t = report.body.data.totals;
+      for (const row of report.body.data.rows) {
+        expect(s.cases.total).toBeGreaterThanOrEqual(row.logins);
+        expect(s.reached.sanction).toBeGreaterThanOrEqual(row.sanctioned);
+        expect(s.reached.disbursed).toBeGreaterThanOrEqual(row.disbursed);
+        expect(s.reached.handover).toBeGreaterThanOrEqual(row.handovers);
+      }
+      expect(t.logins).toBe(s.cases.total);
+      expect(t.sanctioned).toBe(s.reached.sanction);
+      expect(t.disbursed).toBe(s.reached.disbursed);
+      expect(t.handovers).toBe(s.reached.handover);
+      expect(partners.body.data.totals.reached).toEqual(s.reached);
+      const dashPayout = Object.values(s.payouts as Record<string, { amount: number }>).reduce((a, p) => a + p.amount, 0);
+      expect(t.payout).toBeCloseTo(dashPayout, 2);
+      expect(t.dsaPayout + t.teamPayout).toBeCloseTo(t.payout, 2);
+    }
+  });
+
   it('partners cannot open the partner-wise table', async () => {
     expect((await dsa.get('/api/v1/dashboard/partners')).status).toBe(403);
   });

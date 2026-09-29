@@ -16,12 +16,13 @@ interface Row {
   status: string | null;
   teamSize: number;
   cases: Record<'total' | 'own' | 'team' | 'LOGIN' | 'SANCTION' | 'DISBURSED' | 'HANDOVER' | 'QUERY' | 'REJECT' | 'WITHDRAW', number>;
+  reached: { sanction: number; disbursed: number; handover: number };
   amounts: { applied: number; disbursed: number; handover: number };
   payouts: { dsa: number; teamPartners: number; total: number; pending: number; confirmed: number; paid: number; hold: number; lines: number };
 }
 interface Data {
   rows: Row[];
-  totals: { partners: number; teamSize: number; cases: Row['cases']; amounts: Row['amounts']; payouts: Row['payouts'] };
+  totals: { partners: number; teamSize: number; cases: Row['cases']; reached: Row['reached']; amounts: Row['amounts']; payouts: Row['payouts'] };
 }
 
 const money = (n: number) => (n ? formatINR(n, { whole: true }) : '—');
@@ -81,10 +82,10 @@ export function PartnerConsolidation({ params, overview }: { params: Record<stri
                 <thead className="bg-ink-50 text-left">
                   <tr>
                     <th className="sticky left-0 bg-ink-50 px-3 py-2.5">DSA Partner and team</th>
-                    <th className="px-3 py-2.5 text-right">Cases</th>
+                    <th className="px-3 py-2.5 text-right">Logins</th>
                     <th className="px-3 py-2.5 text-right">Self / Team</th>
-                    <th className="px-3 py-2.5 text-right">Login</th>
-                    <th className="px-3 py-2.5 text-right">Sanction</th>
+                    <th className="px-3 py-2.5 text-right">Awaiting sanction</th>
+                    <th className="px-3 py-2.5 text-right">Sanctioned</th>
                     <th className="px-3 py-2.5 text-right">Disbursed</th>
                     <th className="px-3 py-2.5 text-right">Handover</th>
                     <th className="px-3 py-2.5 text-right">Handover ₹</th>
@@ -110,9 +111,16 @@ export function PartnerConsolidation({ params, overview }: { params: Record<stri
                       <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums text-ink-600">
                         {r.cases.total ? `${r.cases.own} / ${r.cases.team}` : '—'}
                       </td>
-                      {(['LOGIN', 'SANCTION', 'DISBURSED', 'HANDOVER'] as const).map((st) => (
+                      {(
+                        [
+                          [r.cases.LOGIN, 'LOGIN'],
+                          [r.reached.sanction, 'SANCTION,DISBURSED,HANDOVER'],
+                          [r.reached.disbursed, 'DISBURSED,HANDOVER'],
+                          [r.reached.handover, 'HANDOVER'],
+                        ] as const
+                      ).map(([n, st]) => (
                         <td key={st} className="px-3 py-2.5 text-right tabular-nums">
-                          {cell(r.cases[st], link('/cases', { dsaId: r.dsaId, status: st }))}
+                          {cell(n, link('/cases', { dsaId: r.dsaId, status: st }))}
                         </td>
                       ))}
                       <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums">{money(r.amounts.handover)}</td>
@@ -150,9 +158,9 @@ export function PartnerConsolidation({ params, overview }: { params: Record<stri
                         {t.cases.own} / {t.cases.team}
                       </td>
                       <td className="px-3 py-3 text-right tabular-nums">{t.cases.LOGIN}</td>
-                      <td className="px-3 py-3 text-right tabular-nums">{t.cases.SANCTION}</td>
-                      <td className="px-3 py-3 text-right tabular-nums">{t.cases.DISBURSED}</td>
-                      <td className="px-3 py-3 text-right tabular-nums">{t.cases.HANDOVER}</td>
+                      <td className="px-3 py-3 text-right tabular-nums">{t.reached.sanction}</td>
+                      <td className="px-3 py-3 text-right tabular-nums">{t.reached.disbursed}</td>
+                      <td className="px-3 py-3 text-right tabular-nums">{t.reached.handover}</td>
                       <td className="whitespace-nowrap px-3 py-3 text-right tabular-nums">{formatINR(t.amounts.handover, { whole: true })}</td>
                       <td className="whitespace-nowrap px-3 py-3 text-right tabular-nums">{formatINR(t.payouts.dsa, { whole: true })}</td>
                       <td className="whitespace-nowrap px-3 py-3 text-right tabular-nums">{formatINR(t.payouts.teamPartners, { whole: true })}</td>

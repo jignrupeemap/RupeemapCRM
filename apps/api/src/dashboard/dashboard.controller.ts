@@ -101,6 +101,12 @@ export class DashboardController {
 
     const result = {
       cases: { total, ...counts },
+      // Cases that reached each stage (whatever stage they are in now), the same way the reports count.
+      reached: {
+        sanction: counts.SANCTION + counts.DISBURSED + counts.HANDOVER,
+        disbursed: counts.DISBURSED + counts.HANDOVER,
+        handover: counts.HANDOVER,
+      },
       amounts: {
         applied: byStatus.reduce((a, s) => a + Number(s._sum.appliedAmount ?? 0), 0),
         sanctioned: Number(amounts._sum.sanctionAmount ?? 0),
@@ -193,6 +199,7 @@ export class DashboardController {
         status: d?.deletedAt ? 'DELETED' : (d?.status ?? null),
         teamSize: d?.dsaProfile ? (teamSize.get(d.dsaProfile.id) ?? 0) : 0,
         cases: { total: c.total, own: c.own, team: c.team, LOGIN: c.login, SANCTION: c.sanction, DISBURSED: c.disbursed, HANDOVER: c.handover, QUERY: c.query, REJECT: c.reject, WITHDRAW: c.withdraw },
+        reached: { sanction: c.sanction + c.disbursed + c.handover, disbursed: c.disbursed + c.handover, handover: c.handover },
         amounts: { applied: c.applied, disbursed: c.disbursed_amt, handover: c.handover_amt },
         payouts: { dsa: pr.dsa_amt, teamPartners: pr.tp_amt, total: pr.dsa_amt + pr.tp_amt, pending: pr.pending, confirmed: pr.confirmed, paid: pr.paid, hold: pr.hold, lines: pr.lines },
       };
@@ -210,6 +217,7 @@ export class DashboardController {
         partners: rows.length,
         teamSize: rows.reduce((a, r) => a + r.teamSize, 0),
         cases: sum((r) => r.cases),
+        reached: sum((r) => r.reached),
         amounts: sum((r) => r.amounts),
         payouts: sum((r) => r.payouts),
       },

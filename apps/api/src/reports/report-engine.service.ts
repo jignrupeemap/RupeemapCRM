@@ -181,11 +181,23 @@ export class ReportEngine {
       WHERE ${this.caseSql(user, f)} AND ${who} IS NOT NULL
       GROUP BY ${who}
       ORDER BY logins DESC`;
-    const payouts = await this.prisma.payout.groupBy({
-      by: ['beneficiaryId'],
-      where: { AND: [this.scope.payoutWhere(user), { beneficiaryId: { in: rows.map((r) => r.uid) } }, { loanCase: this.caseWhere(user, f) }] },
-      _sum: { amount: true },
+    // Payouts are dated by when they were created, as on the dashboard and the Payout page.
+    const { from, to, ...caseF } = f;
+    const payouts = await this.prisma.payout.findMany({
+      where: {
+        AND: [
+          this.scope.payoutWhere(user),
+          { loanCase: this.caseWhere(user, caseF) },
+          by === 'DSA' ? { loanCase: { dsaId: { in: rows.map((r) => r.uid) } } } : { beneficiaryId: { in: rows.map((r) => r.uid) } },
+          from || to ? { createdAt: { gte: from, lte: to } } : {},
+        ],
+      },
+      select: { amount: true, beneficiaryId: true, beneficiaryRole: true, loanCase: { select: { dsaId: true } } },
     });
+    const paid = (uid: string, role?: 'DSA' | 'TEAM_PARTNER') =>
+      payouts
+        .filter((p) => (by === 'DSA' ? p.loanCase.dsaId === uid : p.beneficiaryId === uid) && (!role || p.beneficiaryRole === role))
+        .reduce((a, p) => a + Number(p.amount), 0);
     const people = await this.names(rows.map((r) => r.uid));
     const out = rows.map((r) => ({
       name: people.get(r.uid)?.name ?? '',
@@ -199,7 +211,8 @@ export class ReportEngine {
       applied: n(r.applied),
       disbursedAmount: n(r.disbursed_amt),
       handoverAmount: n(r.handover_amt),
-      payout: n(payouts.find((p) => p.beneficiaryId === r.uid)?._sum.amount),
+      ...(by === 'DSA' ? { dsaPayout: paid(r.uid, 'DSA'), teamPayout: paid(r.uid, 'TEAM_PARTNER') } : {}),
+      payout: paid(r.uid),
     }));
     return {
       title: by === 'DSA' ? 'DSA performance (whole team)' : 'Team Partner performance',
@@ -208,10 +221,18 @@ export class ReportEngine {
         { key: 'logins', label: 'Logins', type: 'number' as const }, { key: 'sanctioned', label: 'Sanctioned', type: 'number' as const }, { key: 'disbursed', label: 'Disbursed', type: 'number' as const },
         { key: 'handovers', label: 'Handovers', type: 'number' as const }, { key: 'dropped', label: 'Rejected / withdrawn', type: 'number' as const }, { key: 'conversion', label: 'Login to handover', type: 'percent' as const },
         { key: 'applied', label: 'Loan amount', type: 'money' as const }, { key: 'disbursedAmount', label: 'Disbursed amount', type: 'money' as const }, { key: 'handoverAmount', label: 'Handover amount', type: 'money' as const },
-        { key: 'payout', label: by === 'DSA' ? 'DSA own payout' : 'Payout', type: 'money' as const },
+        ...(by === 'DSA'
+          ? [{ key: 'dsaPayout', label: 'DSA payout', type: 'money' as const }, { key: 'teamPayout', label: 'Team payout', type: 'money' as const }]
+          : []),
+        { key: 'payout', label: by === 'DSA' ? 'Total payout' : 'Payout', type: 'money' as const },
       ],
       rows: out,
-      totals: { logins: sum(out, 'logins'), handovers: sum(out, 'handovers'), applied: sum(out, 'applied'), handoverAmount: sum(out, 'handoverAmount'), payout: sum(out, 'payout') },
+      totals: {
+        logins: sum(out, 'logins'), sanctioned: sum(out, 'sanctioned'), disbursed: sum(out, 'disbursed'), handovers: sum(out, 'handovers'), dropped: sum(out, 'dropped'),
+        applied: sum(out, 'applied'), disbursedAmount: sum(out, 'disbursedAmount'), handoverAmount: sum(out, 'handoverAmount'),
+        ...(by === 'DSA' ? { dsaPayout: sum(out, 'dsaPayout'), teamPayout: sum(out, 'teamPayout') } : {}),
+        payout: sum(out, 'payout'),
+      },
     };
   }
 
@@ -245,7 +266,10 @@ export class ReportEngine {
         { key: 'daysToSanction', label: 'Avg days to sanction', type: 'number' }, { key: 'daysToHandover', label: 'Avg days to handover', type: 'number' },
       ],
       rows: out,
-      totals: { logins: sum(out, 'logins'), handovers: sum(out, 'handovers'), applied: sum(out, 'applied'), handoverAmount: sum(out, 'handoverAmount') },
+      totals: {
+        logins: sum(out, 'logins'), sanctioned: sum(out, 'sanctioned'), handovers: sum(out, 'handovers'), rejected: sum(out, 'rejected'), applied: sum(out, 'applied'),
+        sanctionedAmount: sum(out, 'sanctionedAmount'), disbursedAmount: sum(out, 'disbursedAmount'), handoverAmount: sum(out, 'handoverAmount'),
+      },
     };
   }
 

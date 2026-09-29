@@ -117,7 +117,7 @@ export default function ReportsPage() {
               <div>
                 <h2 className="font-display text-lg font-bold">{r?.title ?? '…'}</h2>
                 <p className="text-sm text-ink-500">
-                  {r ? `${r.rowCount.toLocaleString('en-IN')} rows${r.rowCount > r.rows.length ? `, first ${r.rows.length} shown here; exports include all` : ''}` : ''}
+                  {r ? `${r.rowCount.toLocaleString('en-IN')} ${r.rowCount === 1 ? 'row' : 'rows'}${r.rowCount > r.rows.length ? `, first ${r.rows.length} shown here; exports include all` : ''}` : ''}
                   {range.key !== 'all' ? ` · ${range.key === 'custom' ? `${range.from} to ${range.to}` : range.key === 'month' ? 'this month' : range.key === 'week' ? 'last 7 days' : 'today'}` : ' · all time'}
                 </p>
               </div>
