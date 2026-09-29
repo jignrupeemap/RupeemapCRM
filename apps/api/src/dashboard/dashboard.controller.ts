@@ -5,6 +5,7 @@ import { PrismaService } from '../common/prisma.service';
 import { ScopeService } from '../common/scope.service';
 import { RedisService } from '../common/redis.service';
 import { InsuranceService } from '../insurance/insurance.service';
+import { RecoveryService } from '../recovery/recovery.service';
 import { parse } from '../common/validate';
 import { can, CurrentUser, type AuthUser } from '../common/auth-context';
 
@@ -24,6 +25,7 @@ export class DashboardController {
     private readonly scope: ScopeService,
     private readonly redis: RedisService,
     private readonly insurance: InsuranceService,
+    private readonly recovery: RecoveryService,
   ) {}
 
   @Get('summary')
@@ -87,6 +89,7 @@ export class DashboardController {
     const trend = await this.trend(caseWhere);
     // Insurance commission is Rupeemap's alone: staff dashboards only, never in partner payout totals.
     const insurance = await this.insurance.summary(user, { from: f.from, to: f.to });
+    const recovery = can(user, 'RECOVERY_VIEW') ? await this.recovery.outstanding(user) : null;
 
     const counts: Record<string, number> = { LOGIN: 0, SANCTION: 0, DISBURSED: 0, HANDOVER: 0, QUERY: 0, REJECT: 0, WITHDRAW: 0 };
     for (const s of byStatus) counts[s.status] = s._count;
@@ -121,6 +124,7 @@ export class DashboardController {
       trend,
       users: (users as any[]).map((u) => ({ role: u.role, status: u.status, count: u._count })),
       insurance,
+      recovery,
     };
     await this.redis.setJson(key, result, 60);
     return result;

@@ -171,3 +171,36 @@ export const INSURANCE_PAYOUT_TRANSITIONS: Record<InsurancePayoutStatus, Insuran
   HOLD: ['PENDING', 'CONFIRMED'],
   RECEIVED: [],
 };
+
+/** Recovery (clawback) workflow, PART 35–37. Receipts move DEMAND_RAISED → PARTIALLY/FULLY_RECOVERED automatically. */
+export const RECOVERY_STATUSES = [
+  'RECOVERY_PENDING',
+  'BANK_RECOVERY_RECEIVED',
+  'DEMAND_RAISED',
+  'PARTIALLY_RECOVERED',
+  'FULLY_RECOVERED',
+  'DISPUTED',
+  'WAIVED',
+  'CLOSED',
+] as const;
+export type RecoveryStatus = (typeof RECOVERY_STATUSES)[number];
+export const RECOVERY_STATUS_LABELS: Record<RecoveryStatus, string> = {
+  RECOVERY_PENDING: 'Recovery pending',
+  BANK_RECOVERY_RECEIVED: 'Bank recovery received',
+  DEMAND_RAISED: 'Demand raised',
+  PARTIALLY_RECOVERED: 'Partially recovered',
+  FULLY_RECOVERED: 'Fully recovered',
+  DISPUTED: 'Disputed',
+  WAIVED: 'Waived',
+  CLOSED: 'Closed',
+};
+
+export const RECOVERY_ACTIONS = {
+  BANK_RECEIVED: { label: 'Bank recovery received', from: ['RECOVERY_PENDING'], to: 'BANK_RECOVERY_RECEIVED', adminOnly: false },
+  RAISE_DEMAND: { label: 'Raise demand to partner', from: ['RECOVERY_PENDING', 'BANK_RECOVERY_RECEIVED'], to: 'DEMAND_RAISED', adminOnly: false },
+  DISPUTE: { label: 'Mark disputed', from: ['DEMAND_RAISED', 'PARTIALLY_RECOVERED'], to: 'DISPUTED', adminOnly: false },
+  REJECT_DISPUTE: { label: 'Dispute rejected, demand stands', from: ['DISPUTED'], to: 'DEMAND_RAISED', adminOnly: false },
+  WAIVE: { label: 'Waive', from: ['RECOVERY_PENDING', 'BANK_RECOVERY_RECEIVED', 'DEMAND_RAISED', 'PARTIALLY_RECOVERED', 'DISPUTED'], to: 'WAIVED', adminOnly: true },
+  CLOSE: { label: 'Close', from: ['FULLY_RECOVERED', 'WAIVED'], to: 'CLOSED', adminOnly: false },
+} as const satisfies Record<string, { label: string; from: readonly RecoveryStatus[]; to: RecoveryStatus; adminOnly: boolean }>;
+export type RecoveryAction = keyof typeof RECOVERY_ACTIONS;

@@ -209,3 +209,26 @@ export const insurancePayoutUpdateSchema = z
     reason: z.string().trim().min(3, 'Enter a reason').max(500),
   })
   .refine((v) => v.amount !== undefined || v.status !== undefined, { message: 'Change the amount or the status', path: ['status'] });
+
+export const recoveryCreateSchema = z.object({
+  payoutId: z.string().uuid('Choose the payout'),
+  recoveryAmount: z.coerce.number({ invalid_type_error: 'Enter the amount the bank recovered' }).positive('Enter the amount the bank recovered').max(1e12),
+  recoveryDate: z.coerce.date({ invalid_type_error: 'Enter the recovery date' }),
+  bankRemarks: z.string().trim().max(1000).optional().or(z.literal('').transform(() => undefined)),
+  reason: z.string().trim().min(3, 'Enter the recovery reason').max(500),
+});
+
+export const recoveryActionSchema = z.object({
+  action: z.enum(['BANK_RECEIVED', 'RAISE_DEMAND', 'DISPUTE', 'REJECT_DISPUTE', 'WAIVE', 'CLOSE']),
+  version: z.number().int().nonnegative(),
+  reason: z.string().trim().min(3, 'Enter a reason').max(500),
+  amountDemanded: z.coerce.number().positive().max(1e12).optional(),
+  dueDate: z.coerce.date().optional(),
+});
+
+export const recoveryReceiptSchema = z.object({
+  version: z.number().int().nonnegative(),
+  amount: z.coerce.number({ invalid_type_error: 'Enter the amount received' }).positive('Enter the amount received').max(1e12),
+  receivedOn: z.coerce.date(),
+  reference: z.string().trim().max(80).optional().or(z.literal('').transform(() => undefined)),
+});

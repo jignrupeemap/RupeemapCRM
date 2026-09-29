@@ -13,6 +13,7 @@ import { PageHeader } from '@/components/shell';
 import { DateRangeFilter, DEFAULT_RANGE, rangeToParams, type RangeValue } from '@/components/date-range';
 import { PayoutAdjustModal } from '@/components/payout-adjust';
 import { PayoutSlabCard } from '@/components/payout-slab';
+import { RecordRecoveryModal } from '@/components/recovery';
 import { Badge, Button, Card, cx, EmptyState, ErrorState, Field, Input, Kpi, Modal, Pagination, PayoutChip, Select, Skeleton, Textarea } from '@/components/ui';
 
 interface PayoutRow {
@@ -63,6 +64,7 @@ function Payouts() {
   const [editing, setEditing] = useState<{ p: PayoutRow; to: PayoutStatus } | null>(null);
   const [adjusting, setAdjusting] = useState<PayoutRow | null>(null);
   const [receipt, setReceipt] = useState<PayoutRow | null>(null);
+  const [recovering, setRecovering] = useState<PayoutRow | null>(null);
   const dates = rangeToParams(range);
   const q = useQuery({
     queryKey: ['payouts', status, page, beneficiaryId, dates],
@@ -180,6 +182,11 @@ function Payouts() {
                               {to === 'PENDING' ? 'Back to Pending' : to === 'HOLD' ? 'Hold' : `Mark ${PAYOUT_STATUS_LABELS[to]}`}
                             </Button>
                           ))}
+                        {p.status === 'PAID' && can('RECOVERY_UPDATE') && (me?.role === 'ADMIN' || me?.role === 'EXECUTIVE') && (
+                          <Button size="sm" variant="ghost" className="text-brand-red" onClick={() => setRecovering(p)}>
+                            Record recovery
+                          </Button>
+                        )}
                         {manage && !p.receivedFromBank && can('PAYOUT_MARK_BANK_RECEIVED') && (
                           <Button size="sm" variant="ghost" onClick={() => setReceipt(p)}>
                             Received from bank
@@ -198,6 +205,7 @@ function Payouts() {
       {editing && <StatusModal {...editing} onClose={() => setEditing(null)} />}
       {adjusting && <PayoutAdjustModal p={{ ...adjusting, caseNo: adjusting.loanCase.caseNo }} onClose={() => setAdjusting(null)} />}
       {receipt && <ReceiptModal p={receipt} onClose={() => setReceipt(null)} />}
+      {recovering && <RecordRecoveryModal payout={{ ...recovering, caseNo: recovering.loanCase.caseNo }} onClose={() => setRecovering(null)} />}
     </div>
   );
 }

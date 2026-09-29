@@ -48,6 +48,7 @@ interface Summary {
   trend: { month: string; logins: number; handovers: number; handoverAmount: number }[];
   users: { role: string; status: string; count: number }[];
   insurance: { policies: number; total: number; received: number; pending: number } | null;
+  recovery: { count: number; amount: number } | null;
 }
 
 const QUICK: { href: string; label: string; icon: typeof Plus; perm?: Permission; roles?: string[]; tone: string }[] = [
@@ -160,7 +161,7 @@ export default function DashboardPage() {
               <Kpi label="Confirmed" value={formatINRCompact(s.payouts.CONFIRMED.amount)} sub={`${s.payouts.CONFIRMED.count} payouts`} href="/payouts?status=CONFIRMED" />
               <Kpi label="Paid" value={formatINRCompact(s.payouts.PAID.amount)} sub={`${s.payouts.PAID.count} payouts`} tone="teal" href="/payouts?status=PAID" />
               <Kpi label="Hold" value={formatINRCompact(s.payouts.HOLD.amount)} sub={`${s.payouts.HOLD.count} payouts`} tone={s.payouts.HOLD.count ? 'red' : 'neutral'} href="/payouts?status=HOLD" />
-              <Kpi label="Recovery" value="₹0" sub="Module in Phase 11" />
+              <Kpi label="Recovery outstanding" value={formatINRCompact(s.recovery?.amount ?? 0)} sub={`${s.recovery?.count ?? 0} open`} tone={s.recovery?.amount ? 'red' : 'neutral'} href="/recovery" />
               {s.insurance && (
                 <Kpi label="Insurance payout (Rupeemap)" value={formatINRCompact(s.insurance.total)} sub={`${formatINRCompact(s.insurance.received)} received · ${s.insurance.policies} policies`} tone="teal" href="/insurance" />
               )}

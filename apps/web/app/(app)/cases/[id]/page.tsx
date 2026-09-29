@@ -24,6 +24,7 @@ import { CaseActionBar } from '@/components/case-actions';
 import { CaseChecklistTab } from '@/components/checklist';
 import { PayoutAdjustModal } from '@/components/payout-adjust';
 import { CaseInsuranceTab } from '@/components/insurance';
+import { RecoveryList } from '@/components/recovery';
 import { Badge, Banner, Button, Card, cx, DetailGrid, EmptyState, ErrorState, Field, Input, Modal, PayoutChip, Select, Skeleton, StatusChip, Tab, TabList, TabPanel, Tabs, Textarea } from '@/components/ui';
 
 interface CaseDetail {
@@ -290,6 +291,10 @@ export default function CaseDetailPage() {
             <RemarksTab c={c} disabled={closed} />
           </TabPanel>
 
+          <TabPanel value="recovery">
+            <RecoveryList caseId={c.id} />
+          </TabPanel>
+
           <TabPanel value="insurance">
             <CaseInsuranceTab caseId={c.id} closed={closed} />
           </TabPanel>
@@ -300,7 +305,6 @@ export default function CaseDetailPage() {
 
           {[
             ['documents', 'Case documents', 'Secure upload of customer documents with version history arrives with private file storage (Phase 9). Track which documents you have in the Checklist tab.'],
-            ['recovery', 'Recovery', 'Bank recovery, demand to partner and WhatsApp reminders arrive in Phase 11.'],
             ['assistance', 'Need Assistance', 'Case-linked assistance requests with assignment and replies arrive in Phase 13.'],
           ].map(([v, t, b]) => (
             <TabPanel key={v} value={v}>

@@ -23,6 +23,8 @@ import { KycController } from './kyc/kyc.controller';
 import { KycService } from './kyc/kyc.service';
 import { InsuranceController } from './insurance/insurance.controller';
 import { InsuranceService } from './insurance/insurance.service';
+import { RecoveryController } from './recovery/recovery.controller';
+import { RecoveryService } from './recovery/recovery.service';
 
 @Module({
   imports: [CommonModule],
@@ -40,6 +42,7 @@ import { InsuranceService } from './insurance/insurance.service';
     ChecklistsController,
     KycController,
     InsuranceController,
+    RecoveryController,
   ],
   providers: [
     AuthService,
@@ -49,6 +52,7 @@ import { InsuranceService } from './insurance/insurance.service';
     ChecklistsService,
     KycService,
     InsuranceService,
+    RecoveryService,
     { provide: APP_GUARD, useClass: AuthGuard },
     { provide: APP_INTERCEPTOR, useClass: EnvelopeInterceptor },
     { provide: APP_FILTER, useClass: GlobalExceptionFilter },

@@ -57,6 +57,18 @@ enum InsurancePayoutStatus {
   HOLD
 }
 
+/// Payout clawback (PART 35–36).
+enum RecoveryStatus {
+  RECOVERY_PENDING
+  BANK_RECOVERY_RECEIVED
+  DEMAND_RAISED
+  PARTIALLY_RECOVERED
+  FULLY_RECOVERED
+  DISPUTED
+  WAIVED
+  CLOSED
+}
+
 enum KycStatus {
   DOCUMENTS_PENDING
   UPLOADED
@@ -582,6 +594,7 @@ model Payout {
   updatedAt          DateTime     @updatedAt @map("updated_at")
   loanCase           LoanCase     @relation(fields: [caseId], references: [id])
   history            PayoutHistory[]
+  recoveries         Recovery[]
 
   @@unique([caseId, beneficiaryId])
   @@index([status])
@@ -667,6 +680,66 @@ model InsurancePayoutHistory {
 
   @@index([payoutId, changedAt])
   @@map("insurance_payout_history")
+}
+
+/// Money the bank clawed back on a payout, and what Rupeemap recovers from the partner.
+model Recovery {
+  id             String         @id @default(uuid()) @db.Uuid
+  payoutId       String         @map("payout_id") @db.Uuid
+  caseId         String         @map("case_id") @db.Uuid
+  beneficiaryId  String         @map("beneficiary_user_id") @db.Uuid
+  recoveryAmount Decimal        @map("recovery_amount") @db.Decimal(15, 2)
+  amountDemanded Decimal?       @map("amount_demanded") @db.Decimal(15, 2)
+  amountReceived Decimal        @default(0) @map("amount_received") @db.Decimal(15, 2)
+  status         RecoveryStatus @default(RECOVERY_PENDING)
+  recoveryDate   DateTime       @map("recovery_date") @db.Date
+  dueDate        DateTime?      @map("due_date") @db.Date
+  bankRemarks    String?        @map("bank_remarks")
+  reason         String
+  createdById    String         @map("created_by") @db.Uuid
+  version        Int            @default(0)
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
+  payout         Payout         @relation(fields: [payoutId], references: [id])
+  receipts       RecoveryReceipt[]
+  history        RecoveryHistory[]
+
+  @@index([status, dueDate])
+  @@index([beneficiaryId, status])
+  @@index([caseId])
+  @@map("recoveries")
+}
+
+model RecoveryReceipt {
+  id          String   @id @default(uuid()) @db.Uuid
+  recoveryId  String   @map("recovery_id") @db.Uuid
+  amount      Decimal  @db.Decimal(15, 2)
+  receivedOn  DateTime @map("received_on") @db.Date
+  reference   String?
+  enteredById String   @map("entered_by") @db.Uuid
+  enteredByName String @map("entered_by_name")
+  createdAt   DateTime @default(now()) @map("created_at")
+  recovery    Recovery @relation(fields: [recoveryId], references: [id])
+
+  @@index([recoveryId])
+  @@map("recovery_receipts")
+}
+
+model RecoveryHistory {
+  id            String          @id @default(uuid()) @db.Uuid
+  recoveryId    String          @map("recovery_id") @db.Uuid
+  action        String
+  prevStatus    RecoveryStatus? @map("prev_status")
+  newStatus     RecoveryStatus  @map("new_status")
+  data          Json            @default("{}")
+  reason        String
+  changedById   String          @map("changed_by") @db.Uuid
+  changedByName String          @map("changed_by_name")
+  changedAt     DateTime        @default(now()) @map("changed_at")
+  recovery      Recovery        @relation(fields: [recoveryId], references: [id])
+
+  @@index([recoveryId, changedAt])
+  @@map("recovery_history")
 }
 
 // ───────────── Communication & content ─────────────
