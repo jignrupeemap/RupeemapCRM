@@ -1,10 +1,11 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Controller, Get, Param, ParseUUIDPipe, Query } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { PrismaService } from '../common/prisma.service';
 import { ScopeService } from '../common/scope.service';
 import { parse } from '../common/validate';
 import { CurrentUser, RequirePermission, type AuthUser } from '../common/auth-context';
+import { forbidden, notFound } from '../common/errors';
 
 const SORTS = {
   logins: Prisma.sql`logins`,
@@ -28,6 +29,12 @@ const projectReportSchema = z.object({
   projectType: z.enum(['RESIDENTIAL', 'COMMERCIAL', 'INDUSTRIAL']).optional(),
 });
 
+const topSchema = z.object({
+  from: z.coerce.date().optional(),
+  to: z.coerce.date().optional(),
+  by: z.enum(['logins', 'handover', 'disbursed']).default('logins'),
+});
+
 /**
  * Server-side analytics. Every query is limited to the caller's data scope,
  * so a DSA's ranking only counts their team's cases.
@@ -38,6 +45,65 @@ export class ReportsController {
     private readonly prisma: PrismaService,
     private readonly scope: ScopeService,
   ) {}
+
+  /**
+   * Admin only (Rupeemap's request): the top 5 partners who sourced cases in one
+   * project, and the top 5 DSA teams, for any period. Ranked by logins, then handover.
+   */
+  @Get('projects/:id/top-performers')
+  async topPerformers(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string, @Query() query: unknown) {
+    if (user.role !== 'ADMIN') throw forbidden('Only Admin can see top performers by project');
+    const f = parse(topSchema, query);
+    const project = await this.prisma.project.findFirst({ where: { id, deletedAt: null }, select: { id: true, name: true, city: true } });
+    if (!project) throw notFound('Project');
+    const conds: Prisma.Sql[] = [Prisma.sql`c.deleted_at IS NULL`, Prisma.sql`c.project_id = ${id}::uuid`];
+    if (f.from) conds.push(Prisma.sql`c.created_at >= ${f.from}`);
+    if (f.to) conds.push(Prisma.sql`c.created_at <= ${f.to}`);
+    const where = Prisma.join(conds, ' AND ');
+    const order = f.by === 'handover' ? Prisma.sql`handover_amount DESC, logins DESC` : f.by === 'disbursed' ? Prisma.sql`disbursed_amount DESC, logins DESC` : Prisma.sql`logins DESC, handover_amount DESC`;
+    const metrics = Prisma.sql`
+      count(*)::int AS logins,
+      count(*) FILTER (WHERE c.status IN ('SANCTION', 'DISBURSED', 'HANDOVER'))::int AS sanctioned,
+      count(*) FILTER (WHERE c.status = 'HANDOVER')::int AS handovers,
+      COALESCE(sum(c.applied_amount), 0) AS applied_amount,
+      COALESCE(sum(c.disbursed_total), 0) AS disbursed_amount,
+      COALESCE(sum(c.handover_amount), 0) AS handover_amount`;
+    // The person who sourced each case: the Team Partner if any, otherwise the DSA.
+    const partners = await this.prisma.$queryRaw<any[]>`
+      SELECT u.id, u.name, u.role::text AS role, d.code AS dsa_code, du.name AS dsa_name, ${metrics}
+      FROM loan_cases c
+      JOIN users u ON u.id = COALESCE(c.team_partner_id, c.dsa_id)
+      JOIN users du ON du.id = c.dsa_id
+      LEFT JOIN dsa_partners d ON d.user_id = c.dsa_id
+      WHERE ${where}
+      GROUP BY u.id, u.name, u.role, d.code, du.name
+      ORDER BY ${order}
+      LIMIT 5`;
+    const teams = await this.prisma.$queryRaw<any[]>`
+      SELECT du.id, du.name, d.code AS dsa_code, count(DISTINCT c.team_partner_id)::int AS team_partners, ${metrics}
+      FROM loan_cases c
+      JOIN users du ON du.id = c.dsa_id
+      LEFT JOIN dsa_partners d ON d.user_id = c.dsa_id
+      WHERE ${where}
+      GROUP BY du.id, du.name, d.code
+      ORDER BY ${order}
+      LIMIT 5`;
+    const shape = (r: any) => ({
+      id: r.id as string,
+      name: r.name as string,
+      role: (r.role ?? 'DSA') as string,
+      dsaCode: r.dsa_code as string | null,
+      dsaName: (r.dsa_name ?? null) as string | null,
+      teamPartners: r.team_partners as number | undefined,
+      logins: r.logins as number,
+      sanctioned: r.sanctioned as number,
+      handovers: r.handovers as number,
+      appliedAmount: Number(r.applied_amount),
+      disbursedAmount: Number(r.disbursed_amount),
+      handoverAmount: Number(r.handover_amount),
+    });
+    return { project, by: f.by, partners: partners.map(shape), teams: teams.map(shape) };
+  }
 
   /** Project-wise logins, amounts and payout, sortable highest or lowest (PART 28, 98). */
   @Get('projects')
