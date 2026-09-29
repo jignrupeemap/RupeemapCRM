@@ -19,6 +19,9 @@ interface CaseRow {
   status: CaseStatus;
   appliedAmount: string;
   handoverAmount: string | null;
+  sanctionAmount: string | null;
+  disbursedTotal: string | null;
+  disbursementType: 'PART' | 'PART_TO_FULL' | 'FULL' | null;
   createdAt: string;
   daysInStage: number;
   customer: { name: string; mobile: string | null };
@@ -26,6 +29,17 @@ interface CaseRow {
   project: { id: string; name: string } | null;
   dsa: { id: string; name: string; mobile: string } | null;
   teamPartner: { id: string; name: string; mobile: string } | null;
+}
+
+/** Part-disbursed cases: how much is still to be disbursed. */
+function PartPayment({ c }: { c: CaseRow }) {
+  if (c.status !== 'DISBURSED' || c.disbursementType !== 'PART') return null;
+  const pending = Math.max(0, Number(c.sanctionAmount ?? 0) - Number(c.disbursedTotal ?? 0));
+  return (
+    <p className="mt-1 inline-flex items-center gap-1 rounded-md bg-brand-goldsoft px-1.5 py-0.5 text-[11px] font-semibold text-amber-900">
+      Part payment{pending ? ` · ${formatINR(pending, { whole: true })} pending` : ''}
+    </p>
+  );
 }
 
 /** Who brought the case in: the Team Partner if any, otherwise the DSA ("Self" for the DSA viewing their own). */
@@ -91,6 +105,7 @@ function Cases() {
     from: params.get('from') ?? '',
     to: params.get('to') ?? '',
     stuck: params.get('stuck') === '1' ? '1' : '',
+    partPayment: params.get('partPayment') === '1' ? '1' : '',
     page: Number(params.get('page') ?? 1),
   };
   const set = (patch: Partial<typeof filters>) => {
@@ -153,6 +168,17 @@ function Cases() {
         </div>
 
         <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 sm:mx-0 sm:flex-wrap sm:px-0" role="group" aria-label="Status">
+          <button
+            onClick={() => set({ partPayment: filters.partPayment ? '' : '1', status: '' })}
+            aria-pressed={!!filters.partPayment}
+            className={cx(
+              'flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-semibold ring-1 ring-inset',
+              filters.partPayment ? 'bg-amber-600 text-white ring-amber-600' : 'bg-brand-goldsoft text-amber-900 ring-amber-200 hover:brightness-95',
+            )}
+            title="Cases disbursed in part, waiting for full disbursement"
+          >
+            Part payment {filters.partPayment && <X className="h-3.5 w-3.5" aria-label="Remove filter" />}
+          </button>
           {filters.stuck && (
             <button onClick={() => set({ stuck: '' })} className="flex shrink-0 items-center gap-1.5 rounded-full bg-brand-red px-3 py-1.5 text-sm font-semibold text-white" title="Show all cases again">
               Stuck {STUCK_CASE_DAYS}+ days in one stage <X className="h-3.5 w-3.5" aria-label="Remove filter" />
@@ -272,6 +298,7 @@ function Cases() {
                         <td className="px-4 py-3 tabular-nums text-ink-700">{c.loanAccountNo ?? <span className="text-ink-400">—</span>}</td>
                         <td className="px-4 py-3">
                           <StatusChip status={c.status} />
+                          <PartPayment c={c} />
                           {c.daysInStage > 15 && !['HANDOVER', 'REJECT', 'WITHDRAW'].includes(c.status) && <p className="mt-1 text-xs font-medium text-brand-red">{c.daysInStage} days in stage</p>}
                         </td>
                         <td className="hidden px-4 py-3 text-right tabular-nums lg:table-cell">{formatINR(c.handoverAmount ?? c.appliedAmount, { whole: true })}</td>
@@ -294,7 +321,10 @@ function Cases() {
                         <p className="truncate font-semibold text-ink">{c.customer.name}</p>
                         <p className="text-sm text-ink-600">{loanTypeName(c.loanType)}</p>
                       </div>
-                      <StatusChip status={c.status} />
+                      <div className="text-right">
+                        <StatusChip status={c.status} />
+                        <PartPayment c={c} />
+                      </div>
                     </div>
                     <div className="mt-3 flex items-center justify-between text-xs text-ink-500">
                       <span className="tabular-nums">{c.loanAccountNo ? `A/c ${c.loanAccountNo}` : c.caseNo}</span>

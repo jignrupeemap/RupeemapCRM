@@ -1,7 +1,7 @@
 'use client';
 /** Recovery (payout clawback): list, detail with actions and receipts, and recording a new one from a payout. */
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { MessageCircle, Undo2 } from 'lucide-react';
+import { Bell, Mail, MessageCircle, Send, Undo2 } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
 import { toast } from 'sonner';
@@ -134,11 +134,6 @@ function RecoveryModal({ id, onClose }: { id: string; onClose: () => void }) {
     onSuccess: () => done(action === 'RECEIPT' ? 'Amount received saved' : 'Recovery updated'),
     onError: (e: ApiError) => toast.error(e.message),
   });
-  const wa = useMutation({
-    mutationFn: () => api.post<{ url: string }>(`/recoveries/${id}/whatsapp`),
-    onSuccess: (x) => window.open(x.url, '_blank', 'noopener'),
-    onError: (e: ApiError) => toast.error(e.message),
-  });
   const r = q.data;
   const actions = r ? (Object.keys(RECOVERY_ACTIONS) as RecoveryAction[]).filter((a) => (RECOVERY_ACTIONS[a].from as readonly string[]).includes(r.status) && (!RECOVERY_ACTIONS[a].adminOnly || me?.role === 'ADMIN')) : [];
   const canReceive = r && ['DEMAND_RAISED', 'PARTIALLY_RECOVERED'].includes(r.status);
@@ -180,11 +175,6 @@ function RecoveryModal({ id, onClose }: { id: string; onClose: () => void }) {
                     {RECOVERY_ACTIONS[a].label}
                   </Button>
                 ))}
-                {r.canWhatsApp && r.amountDemanded !== null && !['CLOSED', 'WAIVED', 'FULLY_RECOVERED'].includes(r.status) && (
-                  <Button size="sm" variant="secondary" className="text-emerald-800" icon={<MessageCircle className="h-4 w-4" />} loading={wa.isPending} onClick={() => wa.mutate()}>
-                    WhatsApp demand
-                  </Button>
-                )}
               </div>
               {action && (
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -250,6 +240,7 @@ function RecoveryModal({ id, onClose }: { id: string; onClose: () => void }) {
               </ul>
             </section>
           )}
+          {r.canManage && <SendToPartner r={r} />}
           {!!r.history?.length && (
             <details>
               <summary className="cursor-pointer text-sm font-semibold text-ink-700">History ({r.history.length})</summary>
@@ -274,6 +265,61 @@ function RecoveryModal({ id, onClose }: { id: string; onClose: () => void }) {
 }
 
 /** Staff: record a bank clawback against a payout. */
+/**
+ * Admin / Executive: send the recovery details to the partner concerned and/or their DSA.
+ * Notification arrives in their CRM; WhatsApp and email open a ready message to send.
+ */
+function SendToPartner({ r }: { r: RecoveryRow }) {
+  const partnerIsDsa = r.beneficiary?.role === 'DSA';
+  const [to, setTo] = useState<('PARTNER' | 'DSA')[]>(partnerIsDsa ? ['PARTNER'] : ['PARTNER', 'DSA']);
+  const [note, setNote] = useState('');
+  const send = useMutation({
+    mutationFn: (channel: 'NOTIFICATION' | 'WHATSAPP' | 'EMAIL') =>
+      api.post<{ channel: string; sent?: number; links?: { name: string; url: string }[] }>(`/recoveries/${r.id}/send`, { channel, to, note }),
+    onSuccess: (x) => {
+      if (x.channel === 'NOTIFICATION') toast.success(`Notification sent to ${x.sent} ${x.sent === 1 ? 'person' : 'people'}`);
+      for (const l of x.links ?? []) window.open(l.url, '_blank', 'noopener');
+      if (x.links?.length) toast.success(`${x.channel === 'EMAIL' ? 'Email' : 'WhatsApp'} message ready for ${x.links.map((l) => l.name).join(' and ')}`);
+    },
+    onError: (e: ApiError) => toast.error(e.message),
+  });
+  const toggle = (k: 'PARTNER' | 'DSA') => setTo((v) => (v.includes(k) ? v.filter((x) => x !== k) : [...v, k]));
+  return (
+    <section className="rounded-2xl border border-ink-200/70 p-4">
+      <h3 className="flex items-center gap-2 text-sm font-semibold text-ink">
+        <Send className="h-4 w-4 text-teal-700" /> Send recovery details
+      </h3>
+      <p className="mt-0.5 text-xs text-ink-500">Shares the case ID, customer name, amounts and due date. Never the customer&apos;s mobile, PAN or loan account.</p>
+      <div className="mt-3 flex flex-wrap gap-3 text-sm">
+        <label className="flex items-center gap-2">
+          <input type="checkbox" className="h-4 w-4 accent-teal-700" checked={to.includes('PARTNER')} onChange={() => toggle('PARTNER')} />
+          {r.beneficiary?.name ?? 'Partner'} ({partnerIsDsa ? 'DSA Partner' : 'Team Partner'})
+        </label>
+        {!partnerIsDsa && r.loanCase.dsa && (
+          <label className="flex items-center gap-2">
+            <input type="checkbox" className="h-4 w-4 accent-teal-700" checked={to.includes('DSA')} onChange={() => toggle('DSA')} />
+            {r.loanCase.dsa} (their DSA Partner)
+          </label>
+        )}
+      </div>
+      <div className="mt-3">
+        <Textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Add a note (optional)" maxLength={500} className="min-h-[64px]" aria-label="Note" />
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <Button size="sm" icon={<Bell className="h-4 w-4" />} disabled={!to.length} loading={send.isPending && send.variables === 'NOTIFICATION'} onClick={() => send.mutate('NOTIFICATION')}>
+          Send notification
+        </Button>
+        <Button size="sm" variant="secondary" className="text-emerald-800" icon={<MessageCircle className="h-4 w-4" />} disabled={!to.length} loading={send.isPending && send.variables === 'WHATSAPP'} onClick={() => send.mutate('WHATSAPP')}>
+          WhatsApp
+        </Button>
+        <Button size="sm" variant="secondary" icon={<Mail className="h-4 w-4" />} disabled={!to.length} loading={send.isPending && send.variables === 'EMAIL'} onClick={() => send.mutate('EMAIL')}>
+          Email
+        </Button>
+      </div>
+    </section>
+  );
+}
+
 export function RecordRecoveryModal({ payout, onClose }: { payout: { id: string; amount: string; beneficiary: { name: string } | null; caseNo: string }; onClose: () => void }) {
   const qc = useQueryClient();
   const [v, setV] = useState({ recoveryAmount: String(Number(payout.amount)), recoveryDate: new Date().toISOString().slice(0, 10), bankRemarks: '', reason: '' });

@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
-import { recoveryActionSchema, recoveryCreateSchema, recoveryReceiptSchema } from '@rupeemap/shared';
+import { recoveryActionSchema, recoveryCreateSchema, recoveryMessageSchema, recoveryReceiptSchema } from '@rupeemap/shared';
 import { RecoveryService } from './recovery.service';
 import { parse } from '../common/validate';
 import { CurrentUser, Meta, RequirePermission, type AuthUser, type RequestMeta } from '../common/auth-context';
@@ -35,8 +35,10 @@ export class RecoveryController {
     return this.recovery.receipt(user, id, parse(recoveryReceiptSchema, body), meta);
   }
 
-  @Post(':id/whatsapp')
-  whatsapp(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string, @Meta() meta: RequestMeta) {
-    return this.recovery.whatsapp(user, id, meta);
+  /** Send recovery details to the partner / their DSA by in-app notification, WhatsApp or email. */
+  @Post(':id/send')
+  @RequirePermission('RECOVERY_UPDATE')
+  send(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string, @Body() body: unknown, @Meta() meta: RequestMeta) {
+    return this.recovery.send(user, id, parse(recoveryMessageSchema, body), meta);
   }
 }

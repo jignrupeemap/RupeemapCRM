@@ -41,6 +41,7 @@ interface InactivitySummary {
 
 interface Summary {
   cases: Record<string, number> & { total: number };
+  partPayment: { count: number; disbursed: number; pending: number };
   /** Cases that reached each stage, wherever they are now (same count as the reports). */
   reached: { sanction: number; disbursed: number; handover: number };
   amounts: { applied: number; sanctioned: number; disbursed: number; handover: number };
@@ -244,6 +245,13 @@ export default function DashboardPage() {
           {s ? (
             <ul className="space-y-3">
               <AttentionRow href={withRange('/cases?stuck=1', params)} icon={<AlarmClock className="h-4 w-4" />} tone="red" label="Cases stuck more than 15 days in one stage" value={s.stuckCases} />
+              <AttentionRow
+                href={withRange('/cases?partPayment=1', params)}
+                icon={<Wallet className="h-4 w-4" />}
+                tone="gold"
+                label="Part payment cases waiting for full disbursement"
+                value={s.partPayment.count ? `${s.partPayment.count} · ${formatINRCompact(s.partPayment.pending)}` : 0}
+              />
               <AttentionRow href={withRange('/cases?status=QUERY', params)} icon={<HelpCircle className="h-4 w-4" />} tone="gold" label="Cases in Query" value={s.cases.QUERY} />
               <AttentionRow href={withRange('/payouts?status=HOLD', params)} icon={<Wallet className="h-4 w-4" />} tone="gold" label="Payouts on Hold" value={s.payouts.HOLD.count} />
               {tickets.data && (

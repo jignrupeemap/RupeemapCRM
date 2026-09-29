@@ -119,6 +119,8 @@ export const caseListQuerySchema = z.object({
   to: z.coerce.date().optional(),
   /** "1" = open cases that have not moved stage for STUCK_CASE_DAYS or more (same rule as the dashboard). */
   stuck: z.enum(['1']).optional(),
+  /** "1" = part-disbursed cases still waiting for full disbursement. */
+  partPayment: z.enum(['1']).optional(),
 });
 
 /** An open case counts as stuck after this many days in one stage. */
@@ -290,6 +292,14 @@ export const recoveryReceiptSchema = z.object({
   amount: z.coerce.number({ invalid_type_error: 'Enter the amount received' }).positive('Enter the amount received').max(1e12),
   receivedOn: z.coerce.date(),
   reference: z.string().trim().max(80).optional().or(z.literal('').transform(() => undefined)),
+});
+
+/** Admin / Executive sends recovery details to the partner concerned and/or their DSA. */
+export const RECOVERY_MESSAGE_CHANNELS = ['NOTIFICATION', 'WHATSAPP', 'EMAIL'] as const;
+export const recoveryMessageSchema = z.object({
+  channel: z.enum(RECOVERY_MESSAGE_CHANNELS),
+  to: z.array(z.enum(['PARTNER', 'DSA'])).min(1, 'Choose who receives it').max(2),
+  note: z.string().trim().max(500).optional().or(z.literal('').transform(() => undefined)),
 });
 
 export const ticketCreateSchema = z

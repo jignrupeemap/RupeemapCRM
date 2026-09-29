@@ -72,6 +72,13 @@ export class DashboardController {
         : Promise.resolve([]),
     ]);
 
+    // Part payment: disbursed in part, waiting for the rest (scope applies: own / team / all).
+    const part = await this.prisma.loanCase.aggregate({
+      where: { AND: [caseWhere, { status: 'DISBURSED', disbursementType: 'PART' }] },
+      _count: true,
+      _sum: { sanctionAmount: true, disbursedTotal: true },
+    });
+
     const projectNames = await this.prisma.project.findMany({ where: { id: { in: byProject.map((p) => p.projectId!) } }, select: { id: true, name: true, city: true } });
     const projectRows = byProject.map((p) => ({
       projectId: p.projectId,
@@ -120,6 +127,11 @@ export class DashboardController {
         handover: pct(counts.HANDOVER, total),
       },
       payouts: payoutByStatus,
+      partPayment: {
+        count: part._count,
+        disbursed: Number(part._sum.disbursedTotal ?? 0),
+        pending: Math.max(0, Number(part._sum.sanctionAmount ?? 0) - Number(part._sum.disbursedTotal ?? 0)),
+      },
       bankReceived: { count: bankReceived._count, amount: Number(bankReceived._sum.bankReceivedAmount ?? 0) },
       stuckCases: stuck,
       projects: projectRows,

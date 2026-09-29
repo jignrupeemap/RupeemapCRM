@@ -108,17 +108,38 @@ describe('Recovery', () => {
     expect(d.body.data.history.length).toBeGreaterThanOrEqual(5);
   });
 
-  it('only Admin can waive, and only Admin sends the WhatsApp demand (no customer contact details)', async () => {
+  it('Admin and Executives send recovery details by notification, WhatsApp or email; partners cannot', async () => {
     const c = await exec.post('/api/v1/recoveries').set(H).send({ payoutId: payout2Id, recoveryAmount: 4000, recoveryDate: today, reason: 'Bank clawback' });
     const id2 = c.body.data.id;
     const d = await exec.post(`/api/v1/recoveries/${id2}/actions`).set(H).send({ action: 'RAISE_DEMAND', version: c.body.data.version, reason: 'Repay', dueDate: due });
-    expect((await exec.post(`/api/v1/recoveries/${id2}/whatsapp`).set(H)).status).toBe(403);
-    const wa = await admin.post(`/api/v1/recoveries/${id2}/whatsapp`).set(H);
+    expect((await dsa.post(`/api/v1/recoveries/${id2}/send`).set(H).send({ channel: 'NOTIFICATION', to: ['PARTNER'] })).status).toBe(403);
+
+    // WhatsApp from an Executive: ready-made message to the Team Partner and the DSA, never the customer's mobile.
+    const wa = await exec.post(`/api/v1/recoveries/${id2}/send`).set(H).send({ channel: 'WHATSAPP', to: ['PARTNER', 'DSA'] });
     expect(wa.status, JSON.stringify(wa.body)).toBe(201);
-    expect(wa.body.data.text).toContain('REC-TEST-');
-    expect(wa.body.data.text).toContain('Recovery Customer 2');
-    expect(wa.body.data.text).not.toContain('9811112222'); // customer's mobile never goes out
-    expect(wa.body.data.url).toContain('wa.me/919000000004');
+    const urls = wa.body.data.links.map((l: any) => decodeURIComponent(l.url));
+    expect(urls.some((u: string) => u.includes('wa.me/919000000004'))).toBe(true);
+    expect(urls.some((u: string) => u.includes('wa.me/919000000003'))).toBe(true);
+    expect(urls[0]).toContain('REC-TEST-');
+    expect(urls[0]).toContain('Recovery Customer 2');
+    expect(urls[0]).toContain('4,000');
+    expect(urls.join(' ')).not.toContain('9811112222'); // customer's mobile never goes out
+
+    // In-app notification from Admin reaches the partner, with a note.
+    const raviU = await prisma.user.findUniqueOrThrow({ where: { mobile: '9000000004' } });
+    const n = await admin.post(`/api/v1/recoveries/${id2}/send`).set(H).send({ channel: 'NOTIFICATION', to: ['PARTNER'], note: 'Call us if you have questions.' });
+    expect(n.body.data.sent).toBe(1);
+    const got = await prisma.notificationRecipient.findFirst({ where: { userId: raviU.id, notification: { title: { startsWith: 'Payout recovery on REC-TEST-' } } }, include: { notification: true } });
+    expect(got?.notification.body).toContain('Call us if you have questions.');
+
+    // Email opens a ready message when an email is saved; otherwise says so plainly.
+    await prisma.user.update({ where: { id: raviU.id }, data: { email: 'ravi.test@example.com' } });
+    const mail = await exec.post(`/api/v1/recoveries/${id2}/send`).set(H).send({ channel: 'EMAIL', to: ['PARTNER'] });
+    expect(mail.body.data.links[0].url).toMatch(/^mailto:ravi\.test@example\.com\?subject=/);
+    await prisma.user.update({ where: { id: raviU.id }, data: { email: null } });
+    const noMail = await exec.post(`/api/v1/recoveries/${id2}/send`).set(H).send({ channel: 'EMAIL', to: ['PARTNER'] });
+    expect(noMail.body.code).toBe('VALIDATION_ERROR');
+    expect(await prisma.auditLog.count({ where: { action: 'RECOVERY_MESSAGE_SENT' } })).toBeGreaterThanOrEqual(3);
     expect((await exec.post(`/api/v1/recoveries/${id2}/actions`).set(H).send({ action: 'WAIVE', version: d.body.data.version, reason: 'Goodwill' })).status).toBe(403);
     const w = await admin.post(`/api/v1/recoveries/${id2}/actions`).set(H).send({ action: 'WAIVE', version: d.body.data.version, reason: 'Goodwill' });
     expect(w.body.data.status).toBe('WAIVED');

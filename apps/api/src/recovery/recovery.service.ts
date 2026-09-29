@@ -6,6 +6,7 @@ import {
   formatINR,
   recoveryActionSchema,
   recoveryCreateSchema,
+  recoveryMessageSchema,
   recoveryReceiptSchema,
   type RecoveryStatus,
 } from '@rupeemap/shared';
@@ -19,10 +20,6 @@ import { Paged } from '../common/http';
 
 const isStaff = (u: AuthUser) => u.role === 'ADMIN' || u.role === 'EXECUTIVE';
 const round2 = (n: number) => Math.round(n * 100) / 100;
-
-/** Only these fields may go into a partner WhatsApp (PART 37): no customer mobile, PAN or loan account. */
-export const RECOVERY_WHATSAPP_TEMPLATE =
-  'Dear {{dsa_name}}{{team_partner_name}}, the bank has recovered the payout on case {{case_id}} ({{customer_name}}). Please pay {{recovery_amount}} to Rupeemap by {{due_date}}. Thank you, Rupeemap';
 
 /**
  * Recovery (PART 35–37): when a bank claws back a payout, Admin/Executives
@@ -197,26 +194,51 @@ export class RecoveryService {
   }
 
   /** Prefilled WhatsApp message to the partner. Built on the server so only permitted fields are ever used. */
-  async whatsapp(user: AuthUser, id: string, meta: RequestMeta) {
-    if (!can(user, 'WHATSAPP_SEND') || !isStaff(user)) throw forbidden('You are not allowed to send WhatsApp messages');
+  /**
+   * Admin / Executive sends recovery details to the partner concerned and/or their DSA.
+   * Notification is delivered in the app; WhatsApp and email open ready-to-send messages
+   * (wa.me / the user's mail app). Only case ID, customer name, amounts and dates are shared:
+   * never customer mobile, PAN or loan account (PART 37). Every send is audited.
+   */
+  async send(user: AuthUser, id: string, b: z.infer<typeof recoveryMessageSchema>, meta: RequestMeta) {
+    this.assertManage(user);
     const r = await this.prisma.recovery.findUnique({ where: { id }, include: this.include(false) });
     if (!r) throw notFound('Recovery');
-    if (r.amountDemanded === null) throw new AppError('INVALID_TRANSITION', 'Raise a demand before messaging the partner');
     const c = r.payout.loanCase;
-    const people = await this.people([c.dsaId, ...(c.teamPartnerId ? [c.teamPartnerId] : [])]);
-    const to = people.get(r.beneficiaryId) ?? people.get(c.dsaId)!;
-    const outstanding = round2(Number(r.amountDemanded) - Number(r.amountReceived));
-    const values: Record<string, string> = {
-      dsa_name: r.beneficiaryId === c.dsaId ? people.get(c.dsaId)?.name ?? '' : '',
-      team_partner_name: r.beneficiaryId !== c.dsaId ? people.get(r.beneficiaryId)?.name ?? '' : '',
-      case_id: c.caseNo,
-      customer_name: c.customer.name,
-      recovery_amount: formatINR(outstanding),
-      due_date: r.dueDate ? r.dueDate.toISOString().slice(0, 10).split('-').reverse().join('/') : '',
-    };
-    const text = RECOVERY_WHATSAPP_TEMPLATE.replace(/\{\{(\w+)\}\}/g, (_, k: string) => values[k] ?? '');
-    await this.prisma.$transaction((tx) => this.audit.log(tx, user, { action: 'RECOVERY_WHATSAPP_PREPARED', entity: 'case', entityId: r.caseId, after: { recoveryId: id, to: to.id } }, meta));
-    return { mobile: to.mobile, name: to.name, text, url: `https://wa.me/91${to.mobile}?text=${encodeURIComponent(text)}` };
+    const ids = [...new Set([...(b.to.includes('PARTNER') ? [r.beneficiaryId] : []), ...(b.to.includes('DSA') ? [c.dsaId] : [])])];
+    const users = await this.prisma.user.findMany({ where: { id: { in: ids }, deletedAt: null }, select: { id: true, name: true, mobile: true, email: true } });
+    if (!users.length) throw new AppError('VALIDATION_ERROR', 'Nobody to send to');
+    const outstanding = r.amountDemanded === null ? null : round2(Number(r.amountDemanded) - Number(r.amountReceived));
+    const due = r.dueDate ? r.dueDate.toISOString().slice(0, 10).split('-').reverse().join('/') : null;
+    const lines = [
+      `The bank has recovered the payout on case ${c.caseNo} (${c.customer.name}, ${c.bank.name}).`,
+      `Amount recovered by the bank: ${formatINR(Number(r.recoveryAmount))}.`,
+      outstanding !== null ? `Please pay ${formatINR(outstanding)} to Rupeemap${due ? ` by ${due}` : ''}.` : 'Rupeemap will share the amount to be repaid shortly.',
+      b.note ?? '',
+    ].filter(Boolean);
+    const title = `Payout recovery on ${c.caseNo}`;
+    const text = (name: string) => `Dear ${name}, ${lines.join(' ')} Thank you, Rupeemap`;
+
+    let result: { channel: string; sent?: number; links?: { name: string; url: string }[] };
+    if (b.channel === 'NOTIFICATION') {
+      await this.prisma.$transaction((tx) =>
+        this.notify.toUsers(tx, users.map((u) => u.id), { title, body: lines.join(' '), caseId: r.caseId, priority: 'HIGH', sentById: user.id }),
+      );
+      result = { channel: b.channel, sent: users.length };
+    } else if (b.channel === 'WHATSAPP') {
+      result = { channel: b.channel, links: users.map((u) => ({ name: u.name, url: `https://wa.me/91${u.mobile}?text=${encodeURIComponent(text(u.name))}` })) };
+    } else {
+      const withEmail = users.filter((u) => u.email);
+      if (!withEmail.length) throw new AppError('VALIDATION_ERROR', 'No email address is saved for this partner. Use notification or WhatsApp instead.');
+      result = {
+        channel: b.channel,
+        links: withEmail.map((u) => ({ name: u.name, url: `mailto:${u.email}?subject=${encodeURIComponent(title)}&body=${encodeURIComponent(text(u.name))}` })),
+      };
+    }
+    await this.prisma.$transaction((tx) =>
+      this.audit.log(tx, user, { action: 'RECOVERY_MESSAGE_SENT', entity: 'case', entityId: r.caseId, after: { recoveryId: id, channel: b.channel, to: users.map((u) => u.id) } }, meta),
+    );
+    return result;
   }
 
   /** Outstanding recovery in the caller's scope, for dashboards. */

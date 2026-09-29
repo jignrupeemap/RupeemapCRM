@@ -43,6 +43,7 @@ const LIST_SELECT = {
   appliedAmount: true,
   sanctionAmount: true,
   disbursedTotal: true,
+  disbursementType: true,
   handoverAmount: true,
   createdAt: true,
   dsaId: true,
@@ -196,6 +197,8 @@ export class CasesService {
     if (q.dsaId) and.push({ dsaId: q.dsaId });
     if (q.teamPartnerId) and.push({ teamPartnerId: q.teamPartnerId });
     if (q.from || q.to) and.push({ createdAt: { gte: q.from, lte: q.to ? endOfDay(q.to) : undefined } });
+    // Part payment: disbursed in part, not yet fully disbursed (same scope rules: own / team / all).
+    if (q.partPayment) and.push({ status: 'DISBURSED', disbursementType: 'PART' });
     if (q.stuck) and.push({ status: { in: [...STUCK_CASE_STATUSES] }, statusChangedAt: { lt: new Date(Date.now() - STUCK_CASE_DAYS * 86_400_000) } });
     if (q.q) {
       const digits = q.q.replace(/\D/g, '');

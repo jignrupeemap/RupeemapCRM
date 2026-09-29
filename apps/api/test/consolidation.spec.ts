@@ -144,6 +144,37 @@ describe('Consolidated Admin figures', () => {
     }
   });
 
+  it('part payment cases: each user sees own / team / all, and the dashboard count matches the list', async () => {
+    const mehul = await prisma.user.findUniqueOrThrow({ where: { mobile: '9000000003' } });
+    const ravi = await prisma.user.findUniqueOrThrow({ where: { mobile: '9000000004' } });
+    const bank = await prisma.bank.findFirstOrThrow({ where: { active: true } });
+    const cust = await prisma.customer.create({ data: { name: 'Part Payment Customer', mobile: `76${String(Date.now()).slice(-8)}` } });
+    const part = await prisma.loanCase.create({
+      data: {
+        caseNo: `PART-${Date.now()}`, customerId: cust.id, loanType: 'HOME_LOAN', appliedAmount: 5000000, sanctionAmount: 4800000, disbursedTotal: 2000000,
+        disbursementType: 'PART', status: 'DISBURSED', bankId: bank.id, dsaId: mehul.id, teamPartnerId: ravi.id, createdById: ravi.id, createdRole: 'TEAM_PARTNER',
+      },
+    });
+    try {
+      const tp = await login('9000000004');
+      for (const [who, where] of [
+        [admin, {}],
+        [dsa, { dsaId: mehul.id }],
+        [tp, { teamPartnerId: ravi.id }],
+      ] as const) {
+        const list = await who.get('/api/v1/cases').query({ partPayment: '1', pageSize: 100 });
+        const dbCount = await prisma.loanCase.count({ where: { deletedAt: null, status: 'DISBURSED', disbursementType: 'PART', ...where } });
+        expect(list.body.meta.total).toBe(dbCount);
+        expect(list.body.data.map((c: any) => c.id)).toContain(part.id);
+        expect((await who.get('/api/v1/dashboard/summary')).body.data.partPayment.count).toBe(dbCount);
+      }
+      const row = (await admin.get('/api/v1/cases').query({ partPayment: '1', pageSize: 100 })).body.data.find((c: any) => c.id === part.id);
+      expect(Number(row.sanctionAmount) - Number(row.disbursedTotal)).toBe(2800000);
+    } finally {
+      await prisma.loanCase.update({ where: { id: part.id }, data: { deletedAt: new Date() } });
+    }
+  });
+
   it('partners cannot open the partner-wise table', async () => {
     expect((await dsa.get('/api/v1/dashboard/partners')).status).toBe(403);
   });
