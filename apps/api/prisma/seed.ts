@@ -173,6 +173,20 @@ async function main() {
     }
   }
 
+  if (!(await prisma.bankCode.count())) {
+    const codes = [
+      [0, 'Home Loan', 'HDFC-AHM-DSA-2231', 'Ahmedabad', 'Gujarat', 'Navrangpura'],
+      [0, 'Loan Against Property', 'HDFC-AHM-LAP-0418', 'Ahmedabad', 'Gujarat', 'CG Road'],
+      [1, 'Home Loan', 'ICICI-GJ-HL-7781', 'Ahmedabad', 'Gujarat', 'Satellite'],
+      [2, 'Home Loan', 'SBI-RACPC-AHD-119', 'Ahmedabad', 'Gujarat', 'RACPC Ashram Road'],
+      [6, 'Home Loan', 'LICHFL-AHD-DSA-552', 'Ahmedabad', 'Gujarat', 'Ellisbridge'],
+      [7, 'Home Loan', 'BHFL-SUR-DSA-903', 'Surat', 'Gujarat', 'Vesu'],
+    ] as const;
+    for (const [b, product, code, city, region, branch] of codes) {
+      await prisma.bankCode.create({ data: { bankId: banks[b].id, product, code, city, region, branch, effectiveFrom: new Date('2026-04-01'), createdById: admin.id } });
+    }
+  }
+
   if (!(await prisma.slider.count())) {
     await prisma.slider.createMany({
       data: [

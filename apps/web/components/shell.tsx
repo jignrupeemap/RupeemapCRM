@@ -62,7 +62,7 @@ export const NAV: { group: string; items: NavItem[] }[] = [
       { href: '/projects', label: 'Project Master', icon: Building2, perm: 'PROJECT_VIEW' },
       { href: '/bankers', label: 'Banker Directory', icon: BookUser, perm: 'BANKER_VIEW' },
       { href: '/checklist', label: 'Checklist', icon: ClipboardCheck, perm: 'CHECKLIST_VIEW' },
-      { href: '/bank-codes', label: 'Bankwise Code', icon: Hash, perm: 'BANK_CODE_VIEW', soon: true },
+      { href: '/bank-codes', label: 'Bankwise Code', icon: Hash, perm: 'BANK_CODE_VIEW' },
     ],
   },
   {

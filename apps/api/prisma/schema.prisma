@@ -339,6 +339,7 @@ model Bank {
   createdAt DateTime @default(now()) @map("created_at")
   bankers   BankerContact[]
   cases     LoanCase[]
+  codes     BankCode[]
 
   @@map("banks")
 }
@@ -364,7 +365,10 @@ model BankerContact {
   region        String?
   product       String?
   active        Boolean  @default(true)
+  /// Admin chooses which bankers DSA and Team Partners can see (Q9).
+  visibleToPartners Boolean @default(true) @map("visible_to_partners")
   createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @default(now()) @updatedAt @map("updated_at")
   deletedAt     DateTime? @map("deleted_at")
   bank          Bank     @relation(fields: [bankId], references: [id])
   designation   BankerDesignation? @relation(fields: [designationId], references: [id])
@@ -372,6 +376,31 @@ model BankerContact {
 
   @@index([bankId])
   @@map("banker_contacts")
+}
+
+/// Bankwise codes (PART 41): DSA / connector codes per bank, product and location.
+model BankCode {
+  id                String    @id @default(uuid()) @db.Uuid
+  bankId            String    @map("bank_id") @db.Uuid
+  product           String
+  code              String
+  city              String?
+  region            String?
+  branch            String?
+  effectiveFrom     DateTime? @map("effective_from") @db.Date
+  expiresOn         DateTime? @map("expires_on") @db.Date
+  active            Boolean   @default(true)
+  remarks           String?
+  visibleToPartners Boolean   @default(true) @map("visible_to_partners")
+  createdById       String    @map("created_by") @db.Uuid
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+  deletedAt         DateTime? @map("deleted_at")
+  bank              Bank      @relation(fields: [bankId], references: [id])
+
+  @@index([bankId, product])
+  @@index([code])
+  @@map("bank_codes")
 }
 
 model Project {

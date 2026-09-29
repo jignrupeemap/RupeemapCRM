@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import { MEASUREMENT_UNITS, PAYOUT_STATUSES, PROJECT_TYPES, UNIT_TYPES } from './enums';
 
+const blankToUndefined = (v: unknown) => (v === '' || v === null ? undefined : v);
+
 export const mobileSchema = z
   .string({ required_error: 'Mobile number is required' })
   .trim()
@@ -225,6 +227,48 @@ export const recoveryActionSchema = z.object({
   amountDemanded: z.coerce.number().positive().max(1e12).optional(),
   dueDate: z.coerce.date().optional(),
 });
+
+const optionalStr = (max: number) => z.preprocess(blankToUndefined, z.string().trim().max(max).optional());
+const optionalDate = z.preprocess(blankToUndefined, z.coerce.date().optional());
+
+export const bankerSchema = z.object({
+  bankId: z.string().uuid('Choose the bank'),
+  designationId: z.preprocess(blankToUndefined, z.string().uuid().optional()),
+  name: z.string().trim().min(2, 'Enter the banker name').max(120),
+  mobile: z.preprocess(blankToUndefined, mobileSchema.optional()),
+  email: z.preprocess(blankToUndefined, z.string().trim().email('Enter a valid email').optional()),
+  branch: optionalStr(120),
+  city: optionalStr(80),
+  region: optionalStr(80),
+  product: optionalStr(80),
+  active: z.boolean().default(true),
+  visibleToPartners: z.boolean().default(true),
+});
+export type BankerInput = z.infer<typeof bankerSchema>;
+
+export const bankerShareSchema = z.object({
+  ids: z.array(z.string().uuid()).min(1, 'Choose at least one banker').max(50),
+  channel: z.enum(['WHATSAPP', 'EMAIL']),
+  /** Optional recipient: a mobile for WhatsApp or an email address. Blank lets the sender pick a contact. */
+  to: optionalStr(120),
+});
+
+export const bankCodeSchema = z
+  .object({
+    bankId: z.string().uuid('Choose the bank'),
+    product: z.string().trim().min(2, 'Enter the product').max(80),
+    code: z.string().trim().min(1, 'Enter the code').max(60),
+    city: optionalStr(80),
+    region: optionalStr(80),
+    branch: optionalStr(120),
+    effectiveFrom: optionalDate,
+    expiresOn: optionalDate,
+    active: z.boolean().default(true),
+    remarks: optionalStr(500),
+    visibleToPartners: z.boolean().default(true),
+  })
+  .refine((v) => !v.effectiveFrom || !v.expiresOn || v.effectiveFrom <= v.expiresOn, { message: 'Expiry must be after the effective date', path: ['expiresOn'] });
+export type BankCodeInput = z.infer<typeof bankCodeSchema>;
 
 export const recoveryReceiptSchema = z.object({
   version: z.number().int().nonnegative(),

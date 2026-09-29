@@ -52,17 +52,6 @@ export class MastersController {
     return bank;
   }
 
-  @Get('bankers')
-  @RequirePermission('BANKER_VIEW')
-  bankers(@Query('bankId') bankId?: string) {
-    return this.prisma.bankerContact.findMany({
-      where: { deletedAt: null, active: true, ...(bankId ? { bankId } : {}) },
-      include: { designation: true, bank: { select: { name: true } } },
-      orderBy: [{ bankId: 'asc' }, { name: 'asc' }],
-      take: 200,
-    });
-  }
-
   @Get('projects')
   @RequirePermission('PROJECT_VIEW')
   async projects(@CurrentUser() user: AuthUser, @Query() q: Record<string, string>) {

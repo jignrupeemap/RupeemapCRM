@@ -23,6 +23,8 @@ import { KycController } from './kyc/kyc.controller';
 import { KycService } from './kyc/kyc.service';
 import { InsuranceController } from './insurance/insurance.controller';
 import { InsuranceService } from './insurance/insurance.service';
+import { BankersController } from './directory/bankers.controller';
+import { BankCodesController } from './directory/bank-codes.controller';
 import { RecoveryController } from './recovery/recovery.controller';
 import { RecoveryService } from './recovery/recovery.service';
 
@@ -42,6 +44,8 @@ import { RecoveryService } from './recovery/recovery.service';
     ChecklistsController,
     KycController,
     InsuranceController,
+    BankersController,
+    BankCodesController,
     RecoveryController,
   ],
   providers: [
