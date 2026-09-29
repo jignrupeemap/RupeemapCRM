@@ -60,6 +60,7 @@ function Payouts() {
   const status = params.get('status') ?? '';
   const page = Number(params.get('page') ?? 1);
   const [beneficiaryId, setBeneficiaryId] = useState(params.get('beneficiaryId') ?? '');
+  const [dsaId, setDsaId] = useState(params.get('dsaId') ?? '');
   const [range, setRange] = useState<RangeValue>(() => initialRange(params));
   const [editing, setEditing] = useState<{ p: PayoutRow; to: PayoutStatus } | null>(null);
   const [adjusting, setAdjusting] = useState<PayoutRow | null>(null);
@@ -67,8 +68,8 @@ function Payouts() {
   const [recovering, setRecovering] = useState<PayoutRow | null>(null);
   const dates = rangeToParams(range);
   const q = useQuery({
-    queryKey: ['payouts', status, page, beneficiaryId, dates],
-    queryFn: () => api.page<PayoutRow>('/payouts', { status, page, pageSize: 20, beneficiaryId, ...dates }),
+    queryKey: ['payouts', status, page, beneficiaryId, dsaId, dates],
+    queryFn: () => api.page<PayoutRow>('/payouts', { status, page, pageSize: 20, beneficiaryId, dsaId, ...dates }),
     placeholderData: keepPreviousData,
   });
   const people = useQuery({
@@ -83,7 +84,8 @@ function Payouts() {
   const manage = can('PAYOUT_UPDATE');
   const go = (s: string) => router.replace(`${pathname}${s ? `?status=${s}` : ''}`, { scroll: false });
   const choices = (people.data?.data ?? []).filter((u) => u.role === 'DSA' || u.role === 'TEAM_PARTNER');
-  const who = choices.find((u) => u.id === beneficiaryId)?.name;
+  const team = dsaId ? choices.find((u) => u.id === dsaId)?.name : undefined;
+  const who = choices.find((u) => u.id === beneficiaryId)?.name ?? (team ? `${team} and team` : undefined);
 
   return (
     <div>
@@ -112,8 +114,8 @@ function Payouts() {
                 </option>
               ))}
             </Select>
-            {beneficiaryId && (
-              <button className="rounded-lg p-2 text-ink-500 hover:bg-ink-100" aria-label="Show everyone" onClick={() => setBeneficiaryId('')}>
+            {(beneficiaryId || dsaId) && (
+              <button className="rounded-lg p-2 text-ink-500 hover:bg-ink-100" aria-label="Show everyone" onClick={() => (setBeneficiaryId(''), setDsaId(''))}>
                 <X className="h-4 w-4" />
               </button>
             )}

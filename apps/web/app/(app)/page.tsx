@@ -26,6 +26,7 @@ import { useMe } from '@/lib/session';
 import { HeroSlider, type Slide } from '@/components/hero-slider';
 import { DateRangeFilter, DEFAULT_RANGE, rangeToParams, type RangeValue } from '@/components/date-range';
 import { Banner, Card, cx, EmptyState, Kpi, SectionTitle, Skeleton, StatusChip } from '@/components/ui';
+import { PartnerConsolidation } from '@/components/partner-consolidation';
 
 const TrendChart = dynamic(() => import('@/components/trend-chart'), { ssr: false, loading: () => <Skeleton className="h-56" /> });
 
@@ -177,6 +178,13 @@ export default function DashboardPage() {
           </>
         )}
       </section>
+
+      {isStaff && me.permissions.includes('CASE_VIEW_ALL') && (
+        <PartnerConsolidation
+          params={params}
+          overview={s ? { cases: s.cases.total, payouts: Object.values(s.payouts).reduce((a, p) => a + p.amount, 0) } : undefined}
+        />
+      )}
 
       <div className="grid gap-6 lg:grid-cols-5">
         <Card className="p-5 lg:col-span-3">

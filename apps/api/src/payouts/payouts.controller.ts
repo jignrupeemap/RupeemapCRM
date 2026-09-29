@@ -49,6 +49,8 @@ export class PayoutsController {
       { loanCase: { deletedAt: null } },
       q.bankReceived === '1' ? { receivedFromBank: true } : q.bankReceived === '0' ? { receivedFromBank: false } : {},
       q.beneficiaryId ? { beneficiaryId: q.beneficiaryId } : {},
+      // One DSA Partner and their whole team (scope above still limits a DSA to their own team).
+      q.dsaId && /^[0-9a-f-]{36}$/i.test(q.dsaId) ? { loanCase: { dsaId: q.dsaId } } : {},
       q.from || q.to ? { createdAt: { gte: date(q.from), lte: date(q.to) } } : {},
     ];
     const where: Prisma.PayoutWhereInput = { AND: [...base, q.status ? { status: { in: q.status.split(',') as PayoutStatus[] } } : {}] };
