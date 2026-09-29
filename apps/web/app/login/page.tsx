@@ -72,7 +72,8 @@ function LoginForm({ onMode }: { onMode: (m: Mode) => void }) {
       await api.post('/auth/login', v);
       await qc.invalidateQueries();
       const next = params.get('next');
-      router.replace(next && next.startsWith('/') && !next.startsWith('//') ? next : '/');
+      // Only same-site paths: "//evil" and "/\evil" would leave the CRM.
+      router.replace(next && /^\/(?![/\\])/.test(next) ? next : '/');
     } catch (e) {
       setErr((e as ApiError).message);
     }
@@ -84,6 +85,11 @@ function LoginForm({ onMode }: { onMode: (m: Mode) => void }) {
         <h2 className="font-display text-2xl font-extrabold">Sign in</h2>
         <p className="mt-1 text-sm text-ink-500">Use your registered mobile number or username.</p>
       </div>
+      {!err && params.get('expired') && (
+        <p className="rounded-xl bg-brand-goldsoft px-3 py-2.5 text-sm font-medium text-amber-900" role="status">
+          You were signed out after a period of no activity. Please sign in again.
+        </p>
+      )}
       {err && <p className="rounded-xl bg-brand-redsoft px-3 py-2.5 text-sm font-medium text-red-800" role="alert">{err}</p>}
       <Field label="Mobile number or username" htmlFor="login" error={form.formState.errors.login?.message}>
         <Input id="login" autoComplete="username" inputMode="text" placeholder="98XXXXXXXX" {...form.register('login')} aria-invalid={!!form.formState.errors.login} />

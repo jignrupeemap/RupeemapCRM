@@ -14,7 +14,16 @@ export const passwordSchema = z
   .min(8, 'Use at least 8 characters')
   .max(128)
   .regex(/[A-Za-z]/, 'Include at least one letter')
-  .regex(/\d/, 'Include at least one number');
+  .regex(/\d/, 'Include at least one number')
+  .refine((p) => !COMMON_PASSWORDS.has(p.toLowerCase().replace(/[^a-z0-9]/g, '')), 'This password is too common. Choose something harder to guess')
+  .refine((p) => !/^(.)\1+$/.test(p.replace(/\d+$/, '')) && !/^(0123|1234|2345|abcd)/i.test(p), 'This password is too easy to guess');
+
+/** Passwords attackers try first (compared ignoring case and symbols). */
+const COMMON_PASSWORDS = new Set([
+  'password1', 'password12', 'password123', 'passw0rd', 'passw0rd1', 'admin123', 'admin1234', 'welcome1', 'welcome123',
+  'qwerty123', 'qwerty1234', 'abc12345', 'abcd1234', 'india123', 'india1234', 'iloveyou1', 'letmein1', 'test1234',
+  'rupeemap1', 'rupeemap12', 'rupeemap123', 'rupeemap2026', 'loan12345', 'dsa12345', 'mumbai123', 'ahmedabad1',
+]);
 
 export const loginSchema = z.object({
   login: z.string().trim().min(1, 'Enter your mobile number or username').max(64),

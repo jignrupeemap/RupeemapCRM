@@ -44,7 +44,7 @@ async function call<T>(method: string, path: string, body?: unknown, headers: Re
   if (!res.ok || !json?.success) {
     const err = new ApiError(json?.code ?? 'INTERNAL_ERROR', json?.message ?? 'Something went wrong. Please try again.', res.status, json?.details);
     if (res.status === 401 && typeof window !== 'undefined' && !path.startsWith('/auth/')) {
-      window.location.href = `/login?next=${encodeURIComponent(window.location.pathname)}`;
+      window.location.href = `/login?expired=1&next=${encodeURIComponent(window.location.pathname)}`;
     }
     throw err;
   }

@@ -9,3 +9,6 @@ onlyBuiltDependencies:
   - esbuild
   - prisma
   - sharp
+overrides:
+  # Build-time CSS tool used by Next.js; pinned to the release with the source-map fixes.
+  postcss: ^8.5.23

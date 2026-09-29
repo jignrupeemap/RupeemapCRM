@@ -1,3 +1,4 @@
+import { contentDisposition } from '../common/http-safety';
 import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query, Res, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import type { Response } from 'express';
@@ -57,7 +58,7 @@ export class TicketsController {
     res.set({
       'Content-Type': f.mime,
       'Content-Length': String(f.body.length),
-      'Content-Disposition': `inline; filename="${f.name.replace(/"/g, '')}"`,
+      'Content-Disposition': contentDisposition('inline', f.name),
       'Cache-Control': 'private, no-store',
       'X-Content-Type-Options': 'nosniff',
       'Content-Security-Policy': "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; sandbox",

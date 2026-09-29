@@ -10,6 +10,8 @@ import { IS_PUBLIC, REQUIRED_PERMISSIONS, type AuthUser } from './auth-context';
 export const SESSION_COOKIE = 'rm_session';
 export const sessionKey = (tokenHash: string) => `sess:${tokenHash}`;
 export const hashToken = (t: string) => createHash('sha256').update(t).digest('hex');
+/** Sign out after this long with no activity (staff see the most data, so they time out sooner). */
+export const IDLE_MINUTES: Record<Role, number> = { ADMIN: 30, EXECUTIVE: 30, DSA: 120, TEAM_PARTNER: 120 };
 
 /**
  * Global guard: authenticate from the session (cookie or bearer), confirm the
@@ -62,6 +64,10 @@ export class AuthGuard implements CanActivate {
     });
     if (!s || s.revokedAt || s.expiresAt < new Date()) return null;
     const u = s.user;
+    if (Date.now() - s.lastSeenAt.getTime() > IDLE_MINUTES[u.role as Role] * 60_000) {
+      await this.prisma.session.update({ where: { id: s.id }, data: { revokedAt: new Date() } }).catch(() => undefined);
+      return null;
+    }
     if (u.status !== 'ACTIVE' || u.deletedAt) return null;
     const user: AuthUser = {
       id: u.id,

@@ -10,9 +10,16 @@ import { logger } from './common/logger';
 
 export async function createApp() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, { logger: ['error', 'warn'] });
-  app.set('trust proxy', 1);
+  // Number of reverse proxies in front of the API (the website counts as one), so req.ip is the real client.
+  app.set('trust proxy', Number(process.env.TRUST_PROXY_HOPS ?? 1));
   app.disable('x-powered-by');
   app.use(helmet());
+  // API responses carry personal and financial data: never store them in browser or proxy caches.
+  // Routes that stream files set their own Cache-Control.
+  app.use((_req: unknown, res: { setHeader: (k: string, v: string) => void }, next: () => void) => {
+    res.setHeader('Cache-Control', 'no-store');
+    next();
+  });
   app.use(cookieParser());
   app.useBodyParser('json', { limit: '256kb' });
   app.use(
