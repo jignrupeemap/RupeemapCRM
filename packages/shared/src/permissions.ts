@@ -109,6 +109,7 @@ const PARTNER_COMMON: Permission[] = [
   'QUERY_CREATE',
   'SUPPORT_CREATE',
   'REPORT_VIEW',
+  'REPORT_EXPORT', // Excel / CSV of their own (and, for a DSA, their team's) data only
 ];
 
 /** Executive defaults; Admin can switch each one on or off per executive. */
@@ -161,7 +162,6 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<Role, Permission[]> = {
     'USER_VIEW',
     'USER_RESET_PASSWORD',
     'PAYOUT_PERCENTAGE_UPDATE_TEAM',
-    'REPORT_EXPORT', // own team's data only, like every report
   ],
   TEAM_PARTNER: PARTNER_COMMON,
 };

@@ -1,7 +1,8 @@
 'use client';
 /** Reports (PART 49–50): pick a report, filter it, read it here, export CSV / Excel, or print to PDF. */
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { BarChart3, FileDown, FileSpreadsheet, Printer } from 'lucide-react';
+import { BarChart3, FileDown, FileSpreadsheet, Printer, X } from 'lucide-react';
+import { CASE_STATUSES, CASE_STATUS_LABELS, PAYOUT_STATUSES, PAYOUT_STATUS_LABELS } from '@rupeemap/shared';
 import { useState } from 'react';
 import { api } from '@/lib/api';
 import { fmtDate, formatINR } from '@/lib/format';
@@ -42,6 +43,17 @@ export default function ReportsPage() {
   const [bankId, setBankId] = useState('');
   const [dsaId, setDsaId] = useState('');
   const [teamPartnerId, setTeamPartnerId] = useState('');
+  const [status, setStatus] = useState('');
+  const [loanType, setLoanType] = useState('');
+  const [projectId, setProjectId] = useState('');
+  const [partPayment, setPartPayment] = useState(false);
+  const caseBased = ['cases', 'dsa-performance', 'team-performance', 'banks'].includes(key);
+  const statusChoices: [string, string][] =
+    key === 'payouts' ? PAYOUT_STATUSES.map((x) => [x, PAYOUT_STATUS_LABELS[x]]) : caseBased ? CASE_STATUSES.map((x) => [x, CASE_STATUS_LABELS[x]]) : [];
+  const loanTypes = useQuery({ queryKey: ['loan-types'], queryFn: () => api.get<{ code: string; name: string }[]>('/loan-types'), staleTime: 3600_000 });
+  const projects = useQuery({ queryKey: ['projects', 'all'], queryFn: () => api.page<{ id: string; name: string }>('/projects', { pageSize: 100 }), staleTime: 300_000 });
+  const pick = (k: string) => (setKey(k), setStatus(''), setPartPayment(false));
+  const clear = () => (setBankId(''), setDsaId(''), setTeamPartnerId(''), setStatus(''), setLoanType(''), setProjectId(''), setPartPayment(false), setRange({ ...DEFAULT_RANGE, key: 'month' }));
   const banks = useQuery({ queryKey: ['banks'], queryFn: () => api.get<{ id: string; name: string }[]>('/banks'), staleTime: 600_000 });
   const people = useQuery({
     queryKey: ['report-people', me?.role],
@@ -49,7 +61,17 @@ export default function ReportsPage() {
     enabled: staff || me?.role === 'DSA',
     staleTime: 300_000,
   });
-  const filters = { ...rangeToParams(range), bankId, dsaId, teamPartnerId };
+  const filters = {
+    ...rangeToParams(range),
+    bankId,
+    dsaId,
+    teamPartnerId,
+    loanType,
+    projectId,
+    status: statusChoices.some(([v]) => v === status) ? status : '',
+    partPayment: caseBased && partPayment ? '1' : '',
+  };
+  const active = [bankId, dsaId, teamPartnerId, loanType, projectId, filters.status, filters.partPayment].filter(Boolean).length;
   const report = useQuery({
     queryKey: ['reports', 'run', key, filters],
     queryFn: () => api.get<Result>(`/reports/run/${key}`, filters),
@@ -71,7 +93,7 @@ export default function ReportsPage() {
         <Card className="h-fit p-2 print:hidden">
           <nav aria-label="Reports" className="flex gap-1 overflow-x-auto lg:flex-col">
             {available.data?.map((x) => (
-              <button key={x.key} onClick={() => setKey(x.key)} className={cx('shrink-0 rounded-xl px-3 py-2 text-left text-sm font-semibold', key === x.key ? 'bg-teal-700 text-white' : 'text-ink-700 hover:bg-ink-100')}>
+              <button key={x.key} onClick={() => pick(x.key)} className={cx('shrink-0 rounded-xl px-3 py-2 text-left text-sm font-semibold', key === x.key ? 'bg-teal-700 text-white' : 'text-ink-700 hover:bg-ink-100')}>
                 {x.label}
               </button>
             ))}
@@ -107,6 +129,43 @@ export default function ReportsPage() {
                     </option>
                   ))}
                 </Select>
+              )}
+              {statusChoices.length > 0 && (
+                <Select value={status} onChange={(e) => setStatus(e.target.value)} className="sm:w-44" aria-label="Status">
+                  <option value="">Any status</option>
+                  {statusChoices.map(([v, l]) => (
+                    <option key={v} value={v}>
+                      {l}
+                    </option>
+                  ))}
+                </Select>
+              )}
+              <Select value={loanType} onChange={(e) => setLoanType(e.target.value)} className="sm:w-44" aria-label="Loan type">
+                <option value="">All loan types</option>
+                {loanTypes.data?.map((l) => (
+                  <option key={l.code} value={l.code}>
+                    {l.name}
+                  </option>
+                ))}
+              </Select>
+              <Select value={projectId} onChange={(e) => setProjectId(e.target.value)} className="sm:w-44" aria-label="Project">
+                <option value="">All projects</option>
+                {projects.data?.data.map((pr) => (
+                  <option key={pr.id} value={pr.id}>
+                    {pr.name}
+                  </option>
+                ))}
+              </Select>
+              {caseBased && (
+                <label className={cx('flex h-11 cursor-pointer items-center gap-2 rounded-xl px-3 text-sm font-semibold ring-1 ring-inset', partPayment ? 'bg-amber-600 text-white ring-amber-600' : 'bg-brand-goldsoft text-amber-900 ring-amber-200')}>
+                  <input type="checkbox" className="h-4 w-4 accent-amber-700" checked={partPayment} onChange={(e) => setPartPayment(e.target.checked)} />
+                  Part payment only
+                </label>
+              )}
+              {active > 0 && (
+                <button onClick={clear} className="flex h-11 items-center gap-1.5 rounded-xl px-3 text-sm font-semibold text-ink-600 hover:bg-ink-100">
+                  <X className="h-4 w-4" /> Clear filters ({active})
+                </button>
               )}
             </div>
             <DateRangeFilter value={range} onChange={setRange} />

@@ -60,7 +60,7 @@ describe('Reports', () => {
     expect(all.body.data.rowCount).toBe(await prisma.loanCase.count({ where: { deletedAt: null } }));
   });
 
-  it('exports CSV and a real Excel file; Team Partners cannot export', async () => {
+  it('exports CSV and a real Excel file; every role gets only their own data', async () => {
     const csv = await dsa.get('/api/v1/reports/run/cases/export').query({ format: 'csv' }).buffer(true).parse(binary);
     expect(csv.status).toBe(200);
     expect(csv.body.subarray(0, 3).toString('hex')).toBe('efbbbf'); // UTF-8 BOM so Excel shows ₹ correctly
@@ -70,8 +70,27 @@ describe('Reports', () => {
     expect(xlsx.headers['content-type']).toContain('spreadsheetml');
     expect(xlsx.body.subarray(0, 2).toString()).toBe('PK');
     expect(xlsx.body.toString('latin1')).toContain('xl/worksheets/sheet1.xml');
-    expect((await tp.get('/api/v1/reports/run/cases/export')).status).toBe(403);
+    // Team Partners can export too, but only their own cases.
+    const tpCsv = await tp.get('/api/v1/reports/run/cases/export').query({ format: 'csv' }).buffer(true).parse(binary);
+    expect(tpCsv.status).toBe(200);
+    const tpUser = await prisma.user.findUniqueOrThrow({ where: { mobile: '9000000004' } });
+    const own = new Set((await prisma.loanCase.findMany({ where: { deletedAt: null, teamPartnerId: tpUser.id }, select: { caseNo: true } })).map((c) => c.caseNo));
+    const exported = tpCsv.body.toString('utf8').split('\r\n').slice(1).map((l: string) => l.split(',')[0].replace(/"/g, '')).filter((x: string) => x && x !== 'Total');
+    expect(exported.length).toBe(own.size);
+    expect(exported.every((c: string) => own.has(c))).toBe(true);
     expect(await prisma.auditLog.count({ where: { action: 'REPORT_EXPORTED' } })).toBeGreaterThanOrEqual(2);
+  });
+
+  it('filters narrow the report and its download the same way', async () => {
+    const part = await admin.get('/api/v1/reports/run/cases').query({ partPayment: '1' });
+    expect(part.status).toBe(200);
+    expect(part.body.data.rowCount).toBe(await prisma.loanCase.count({ where: { deletedAt: null, status: 'DISBURSED', disbursementType: 'PART' } }));
+    const byStatus = await admin.get('/api/v1/reports/run/cases').query({ status: 'HANDOVER', loanType: 'HOME_LOAN' });
+    expect(byStatus.body.data.rowCount).toBe(await prisma.loanCase.count({ where: { deletedAt: null, status: 'HANDOVER', loanType: 'HOME_LOAN' } }));
+    expect((await admin.get('/api/v1/reports/run/cases').query({ status: "HANDOVER'; DROP" })).status).toBe(400);
+    const csv = await admin.get('/api/v1/reports/run/cases/export').query({ format: 'csv', status: 'HANDOVER', loanType: 'HOME_LOAN' }).buffer(true).parse(binary);
+    const lines = csv.body.toString('utf8').split('\r\n').filter((l: string) => l && !l.startsWith('"Total"'));
+    expect(lines.length - 1).toBe(byStatus.body.data.rowCount);
   });
 
   it('every report runs for Admin without errors', async () => {

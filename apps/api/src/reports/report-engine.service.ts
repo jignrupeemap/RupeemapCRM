@@ -27,7 +27,9 @@ export const reportFilterSchema = z.object({
   dsaId: z.preprocess(blank, z.string().uuid().optional()),
   teamPartnerId: z.preprocess(blank, z.string().uuid().optional()),
   loanType: z.preprocess(blank, z.string().max(40).optional()),
-  status: z.preprocess(blank, z.string().max(200).optional()),
+  status: z.preprocess(blank, z.string().max(200).regex(/^[A-Z_,]*$/).optional()),
+  /** "1" = only cases disbursed in part, still waiting for full disbursement. */
+  partPayment: z.preprocess(blank, z.enum(['1']).optional()),
 });
 export type ReportFilter = z.infer<typeof reportFilterSchema>;
 
@@ -104,6 +106,7 @@ export class ReportEngine {
         f.teamPartnerId ? { teamPartnerId: f.teamPartnerId } : {},
         f.loanType ? { loanType: f.loanType } : {},
         f.status ? { status: { in: f.status.split(',') as CaseStatus[] } } : {},
+        f.partPayment ? { status: 'DISBURSED' as CaseStatus, disbursementType: 'PART' as const } : {},
       ],
     };
   }
@@ -118,6 +121,7 @@ export class ReportEngine {
     if (f.teamPartnerId) c.push(Prisma.sql`c.team_partner_id = ${f.teamPartnerId}::uuid`);
     if (f.loanType) c.push(Prisma.sql`c.loan_type = ${f.loanType}`);
     if (f.status) c.push(Prisma.sql`c.status::text = ANY(${f.status.split(',')})`);
+    if (f.partPayment) c.push(Prisma.sql`c.status = 'DISBURSED' AND c.disbursement_type = 'PART'`);
     return Prisma.join(c, ' AND ');
   }
 

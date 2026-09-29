@@ -184,7 +184,7 @@ export default function DashboardPage() {
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5 xl:grid-cols-9">
               <Kpi label="Total logins" value={s.cases.total} sub={formatINRCompact(s.amounts.applied) + ' applied'} href={withRange('/cases', params)} />
               <Kpi label="Awaiting sanction" value={s.cases.LOGIN} sub="Still at Login" href={withRange('/cases?status=LOGIN', params)} />
               <Kpi
@@ -199,6 +199,13 @@ export default function DashboardPage() {
                 sub={`${formatINRCompact(s.amounts.disbursed)} · ${s.cases.DISBURSED} awaiting handover`}
                 tone="teal"
                 href={withRange('/cases?status=DISBURSED,HANDOVER', params)}
+              />
+              <Kpi
+                label="Part payment"
+                value={s.partPayment.count}
+                sub={s.partPayment.count ? `${formatINRCompact(s.partPayment.pending)} to disburse` : 'None pending'}
+                tone={s.partPayment.count ? 'gold' : 'neutral'}
+                href={withRange('/cases?partPayment=1', params)}
               />
               <Kpi label="Handover" value={s.cases.HANDOVER} sub={formatINRCompact(s.amounts.handover)} tone="teal" href={withRange('/cases?status=HANDOVER', params)} />
               <Kpi label="Query" value={s.cases.QUERY} tone={s.cases.QUERY ? 'gold' : 'neutral'} href={withRange('/cases?status=QUERY', params)} />
