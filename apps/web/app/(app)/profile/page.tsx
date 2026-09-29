@@ -11,6 +11,7 @@ import { fmtDateTime, initials } from '@/lib/format';
 import { useMe } from '@/lib/session';
 import { PageHeader } from '@/components/shell';
 import { KycPanel } from '@/components/kyc';
+import { PayoutSlabCard } from '@/components/payout-slab';
 import { Badge, Button, Card, DetailGrid, Field, Input } from '@/components/ui';
 
 
@@ -52,6 +53,7 @@ export default function ProfilePage() {
           ['Last sign-in', fmtDateTime(me.lastLoginAt)],
         ]} />
       </Card>
+      <PayoutSlabCard />
       {(me.role === 'DSA' || me.role === 'TEAM_PARTNER') && me.kycStatus && (
         <section id="kyc" className="scroll-mt-20 space-y-3">
           <div>

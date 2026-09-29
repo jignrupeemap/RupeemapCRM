@@ -49,6 +49,13 @@ export const DISBURSEMENT_TYPE_LABELS: Record<DisbursementType, string> = {
   FULL: 'Full',
 };
 
+/**
+ * Payout slab limits (Rupeemap rule, 29 Sep 2026). A DSA's slab is the total
+ * payout per case; any Team Partner share comes out of it. Nobody can set more
+ * than STANDARD_MAX, except Admin, who can set a DSA slab up to ADMIN_MAX.
+ */
+export const PAYOUT_LIMITS = { STANDARD_MAX: 0.9, ADMIN_MAX: 0.98 } as const;
+
 export const PAYOUT_STATUSES = ['PENDING', 'CONFIRMED', 'PAID', 'HOLD'] as const;
 export type PayoutStatus = (typeof PAYOUT_STATUSES)[number];
 export const PAYOUT_STATUS_LABELS: Record<PayoutStatus, string> = {

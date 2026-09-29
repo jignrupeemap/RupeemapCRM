@@ -231,6 +231,15 @@ export class AuthService {
         memberships: { where: { endedOn: null }, include: { dsa: { include: { user: { select: { id: true, name: true, mobile: true } } } } } },
       },
     });
+    // Partner's current fixed payout (default rate), and who set it.
+    const rate =
+      u.role === 'DSA' || u.role === 'TEAM_PARTNER'
+        ? await this.prisma.payoutRate.findFirst({
+            where: { userId: u.id, bankId: null, loanType: null, effectiveFrom: { lte: new Date() } },
+            orderBy: [{ effectiveFrom: 'desc' }, { createdAt: 'desc' }],
+          })
+        : null;
+    const setter = rate ? await this.prisma.user.findUnique({ where: { id: rate.setById }, select: { name: true, role: true } }) : null;
     return {
       id: u.id,
       name: u.name,
@@ -238,6 +247,9 @@ export class AuthService {
       email: u.email,
       role: u.role,
       status: u.status,
+      payoutSlab: rate
+        ? { percent: Number(rate.percent), effectiveFrom: rate.effectiveFrom, setByName: setter?.name ?? null, setByRole: setter?.role ?? null, reason: rate.reason }
+        : null,
       permissions: effectivePermissions(u.role as Role, await this.prisma.userPermission.findMany({ where: { userId: u.id } })),
       dsaCode: u.dsaProfile?.code ?? null,
       dsa: u.memberships[0]?.dsa.user ?? null,

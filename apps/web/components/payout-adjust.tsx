@@ -45,7 +45,7 @@ export function PayoutAdjustModal({ p, onClose }: { p: AdjustablePayout; onClose
       open
       onOpenChange={(o) => !o && onClose()}
       title={`Change payout for ${p.beneficiary?.name ?? 'partner'}`}
-      description={`${p.caseNo} only. Their fixed payout % for other cases does not change. Handover amount ${formatINR(base, { whole: true })}.`}
+      description={`${p.caseNo} only; their fixed % for other cases stays the same. A Team Partner's share comes out of the DSA's slab, so the DSA's payout on this case moves the other way. Handover amount ${formatINR(base, { whole: true })}.`}
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>

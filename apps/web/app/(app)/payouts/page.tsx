@@ -12,6 +12,7 @@ import { useCan, useMe } from '@/lib/session';
 import { PageHeader } from '@/components/shell';
 import { DateRangeFilter, DEFAULT_RANGE, rangeToParams, type RangeValue } from '@/components/date-range';
 import { PayoutAdjustModal } from '@/components/payout-adjust';
+import { PayoutSlabCard } from '@/components/payout-slab';
 import { Badge, Button, Card, cx, EmptyState, ErrorState, Field, Input, Kpi, Modal, Pagination, PayoutChip, Select, Skeleton, Textarea } from '@/components/ui';
 
 interface PayoutRow {
@@ -95,6 +96,9 @@ function Payouts() {
         }
       />
 
+      <div className="mb-4">
+        <PayoutSlabCard />
+      </div>
       <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         {choices.length > 0 ? (
           <div className="flex items-center gap-2">

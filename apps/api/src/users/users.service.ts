@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import {
   EXECUTIVE_CONFIGURABLE,
+  PAYOUT_LIMITS,
   effectivePermissions,
   type Permission,
   type Role,
@@ -71,7 +72,7 @@ export class UsersService {
     const dsa = input.role === 'TEAM_PARTNER' ? await this.resolveTeamDsa(actor, input.dsaId) : null;
 
     if (input.payoutPercent !== undefined) {
-      if (input.role === 'DSA' && !can(actor, 'PAYOUT_PERCENTAGE_UPDATE_DSA')) throw forbidden('You cannot set DSA payout percentage');
+      if (input.role === 'DSA') this.assertDsaRateAllowed(actor, input.payoutPercent);
       if (input.role === 'TEAM_PARTNER') await this.assertTeamRateAllowed(actor, dsa!.userId, input.payoutPercent);
     }
 
@@ -309,13 +310,38 @@ export class UsersService {
     });
   }
 
+  /**
+   * A Team Partner's share comes out of their DSA's slab, so it can never be
+   * more than that slab, nor more than the 0.90% standard maximum. A DSA can
+   * change it any time for their own team, without Rupeemap's approval.
+   */
   private async assertTeamRateAllowed(actor: AuthUser, dsaUserId: string, percent: number) {
     if (!can(actor, 'PAYOUT_PERCENTAGE_UPDATE_TEAM')) throw forbidden('You cannot set Team Partner payout percentage');
-    if (actor.role === 'DSA') {
-      if (dsaUserId !== actor.id) throw forbidden();
-      const own = (await this.currentRates([actor.id])).get(actor.id);
-      if (own === undefined) throw new AppError('VALIDATION_ERROR', 'Your own payout percentage is not set yet. Ask Rupeemap to set it first.');
-      if (percent > own) throw new AppError('VALIDATION_ERROR', `Team Partner percentage cannot exceed your own (${own}%)`, { fields: { percent: `Maximum ${own}%` } });
+    if (actor.role === 'DSA' && dsaUserId !== actor.id) throw forbidden('You can set payout only for your own Team Partners');
+    const slab = (await this.currentRates([dsaUserId])).get(dsaUserId);
+    if (slab === undefined && actor.role === 'DSA') throw new AppError('VALIDATION_ERROR', 'Your own payout slab is not set yet. Ask Rupeemap to set it first.');
+    const max = Math.min(slab ?? PAYOUT_LIMITS.STANDARD_MAX, PAYOUT_LIMITS.STANDARD_MAX);
+    if (percent > max) {
+      throw new AppError(
+        'VALIDATION_ERROR',
+        slab !== undefined && slab <= PAYOUT_LIMITS.STANDARD_MAX
+          ? `Team Partner payout cannot be more than the DSA slab of ${slab}%`
+          : `Team Partner payout cannot be more than ${PAYOUT_LIMITS.STANDARD_MAX}%`,
+        { fields: { percent: `Maximum ${max}%` } },
+      );
+    }
+  }
+
+  /** DSA slab: up to 0.90% by anyone allowed to set it; only Admin can go up to 0.98%. */
+  private assertDsaRateAllowed(actor: AuthUser, percent: number) {
+    if (!can(actor, 'PAYOUT_PERCENTAGE_UPDATE_DSA')) throw forbidden('You cannot set DSA payout percentage');
+    const max = actor.role === 'ADMIN' ? PAYOUT_LIMITS.ADMIN_MAX : PAYOUT_LIMITS.STANDARD_MAX;
+    if (percent > max) {
+      throw new AppError(
+        'VALIDATION_ERROR',
+        actor.role === 'ADMIN' ? `DSA payout slab cannot be more than ${PAYOUT_LIMITS.ADMIN_MAX}%` : `Only Admin can set a DSA slab above ${PAYOUT_LIMITS.STANDARD_MAX}%`,
+        { fields: { percent: `Maximum ${max}%` } },
+      );
     }
   }
 
@@ -323,7 +349,7 @@ export class UsersService {
     const target = await this.prisma.user.findUnique({ where: { id }, include: { memberships: { where: { endedOn: null }, include: { dsa: true } } } });
     if (!target || target.deletedAt) throw notFound('User');
     if (target.role === 'DSA') {
-      if (!can(actor, 'PAYOUT_PERCENTAGE_UPDATE_DSA')) throw forbidden();
+      this.assertDsaRateAllowed(actor, body.percent);
     } else if (target.role === 'TEAM_PARTNER') {
       await this.assertTeamRateAllowed(actor, target.memberships[0]?.dsa.userId ?? '', body.percent);
     } else throw new AppError('VALIDATION_ERROR', 'Payout percentage applies to DSA and Team Partners only');

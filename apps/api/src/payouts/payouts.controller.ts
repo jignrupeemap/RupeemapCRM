@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Headers, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { z } from 'zod';
-import { PAYOUT_STATUS_LABELS, bankReceiptSchema, canMovePayout, payoutUpdateSchema, type PayoutStatus } from '@rupeemap/shared';
+import { PAYOUT_LIMITS, PAYOUT_STATUS_LABELS, bankReceiptSchema, canMovePayout, payoutUpdateSchema, type PayoutStatus } from '@rupeemap/shared';
 import { PrismaService } from '../common/prisma.service';
 import { AuditService } from '../common/audit.service';
 import { ScopeService } from '../common/scope.service';
@@ -19,6 +19,8 @@ const payoutAdjustSchema = z
     reason: z.string().trim().min(3, 'Enter a reason').max(500),
   })
   .refine((v) => (v.percent === undefined) !== (v.amount === undefined), { message: 'Enter either a percentage or an amount', path: ['percent'] });
+
+const pctOf = (base: number, percent: number) => Math.round(((base * percent) / 100) * 100) / 100;
 
 /** Staff with PAYOUT_UPDATE: any payout. DSA: only Team Partner lines on their own cases. */
 export function canAdjustPayout(user: AuthUser, p: { beneficiaryRole: string; loanCase: { dsaId: string } }) {
@@ -79,8 +81,9 @@ export class PayoutsController {
   /**
    * Change the payout % or amount on one case (Rupeemap's request, 29 Sep 2026).
    * Admin and Executives with PAYOUT_UPDATE can adjust any unpaid payout; a DSA
-   * can adjust only their own Team Partners' lines on their own cases, and not
-   * above the DSA's own % on that case. Every change is kept in payout history.
+   * can adjust only their own Team Partners' lines, any time, without approval.
+   * The Team Partner share comes out of the DSA slab on that case; the case total
+   * never exceeds 0.90% (0.98% by Admin). Every change is kept in payout history.
    */
   @Patch(':id/amount')
   async adjust(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string, @Body() body: unknown, @Meta() meta: RequestMeta) {
@@ -96,14 +99,33 @@ export class PayoutsController {
 
       const base = Number(p.baseAmount);
       const percent = b.percent !== undefined ? b.percent : base ? Math.round((b.amount! / base) * 100 * 1000) / 1000 : 0;
-      const amount = b.amount !== undefined ? b.amount : Math.round(((base * b.percent!) / 100) * 100) / 100;
-      if (percent > 100) throw new AppError('VALIDATION_ERROR', 'Payout cannot be more than the handover amount', { fields: { amount: 'Too high' } });
+      const amount = b.amount !== undefined ? b.amount : pctOf(base, b.percent!);
 
-      if (user.role === 'DSA') {
-        const own = await tx.payout.findFirst({ where: { caseId: p.caseId, beneficiaryId: user.id } });
-        const cap = own ? Number(own.percentSnapshot) : null;
-        if (cap !== null && percent > cap) {
-          throw new AppError('VALIDATION_ERROR', `Team Partner payout cannot be more than your own ${cap}% on this case`, { fields: { percent: `Maximum ${cap}%` } });
+      // The case's total payout is the DSA slab. A Team Partner's share comes out of
+      // it, so moving the Team Partner's % moves the DSA's line the other way.
+      const others = await tx.payout.findMany({ where: { caseId: p.caseId, NOT: { id } } });
+      const dsaLine = p.beneficiaryRole === 'TEAM_PARTNER' ? others.find((o) => o.beneficiaryRole === 'DSA') : undefined;
+      let counterpart: { id: string; prev: (typeof others)[number]; percent: number; amount: number } | null = null;
+      if (dsaLine) {
+        const slab = Math.round((Number(dsaLine.percentSnapshot) + Number(p.percentSnapshot)) * 1000) / 1000;
+        if (percent > slab) {
+          throw new AppError('VALIDATION_ERROR', `Team Partner payout cannot be more than the DSA slab of ${slab}% on this case`, { fields: { percent: `Maximum ${slab}%` } });
+        }
+        const dsaPercent = Math.round((slab - percent) * 1000) / 1000;
+        if (dsaPercent !== Number(dsaLine.percentSnapshot)) {
+          if (dsaLine.status === 'PAID') throw new AppError('INVALID_TRANSITION', 'The DSA payout on this case is already paid, so the split cannot change');
+          counterpart = { id: dsaLine.id, prev: dsaLine, percent: dsaPercent, amount: pctOf(base, dsaPercent) };
+        }
+      } else {
+        // Changing a DSA line (Admin/Executive only): the case total stays within the limit.
+        const total = Math.round((percent + others.reduce((a, o) => a + Number(o.percentSnapshot), 0)) * 1000) / 1000;
+        const max = user.role === 'ADMIN' ? PAYOUT_LIMITS.ADMIN_MAX : PAYOUT_LIMITS.STANDARD_MAX;
+        if (total > max) {
+          throw new AppError(
+            'VALIDATION_ERROR',
+            user.role === 'ADMIN' ? `Total payout on a case cannot be more than ${max}%` : `Total payout on a case cannot be more than ${max}%; only Admin can go higher`,
+            { fields: { percent: `Total maximum ${max}%` } },
+          );
         }
       }
 
@@ -111,33 +133,49 @@ export class PayoutsController {
         where: { id },
         data: { amount, percentSnapshot: percent, version: { increment: 1 }, remarks: b.reason },
       });
-      await tx.payoutHistory.create({
-        data: {
-          payoutId: id,
-          prevStatus: p.status,
-          newStatus: p.status,
-          prevAmount: p.amount,
-          newAmount: amount,
-          prevPercent: p.percentSnapshot,
-          newPercent: percent,
-          reason: `Adjusted for this case: ${b.reason}`,
-          changedById: user.id,
-          changedByName: user.name,
-        },
-      });
+      const changes = [{ prev: p, id, percent, amount }, ...(counterpart ? [counterpart] : [])];
+      if (counterpart) {
+        await tx.payout.update({
+          where: { id: counterpart.id },
+          data: { amount: counterpart.amount, percentSnapshot: counterpart.percent, version: { increment: 1 }, remarks: `Team Partner share changed to ${percent}%` },
+        });
+      }
+      for (const c of changes) {
+        const prev: (typeof others)[number] = c.id === id ? p : counterpart!.prev;
+        await tx.payoutHistory.create({
+          data: {
+            payoutId: c.id,
+            prevStatus: prev.status,
+            newStatus: prev.status,
+            prevAmount: prev.amount,
+            newAmount: c.amount,
+            prevPercent: prev.percentSnapshot,
+            newPercent: c.percent,
+            reason: c.id === id ? `Adjusted for this case: ${b.reason}` : `Team Partner share changed to ${percent}%: ${b.reason}`,
+            changedById: user.id,
+            changedByName: user.name,
+          },
+        });
+        await this.notify.toUsers(tx, [prev.beneficiaryId], {
+          title: `Payout changed for ${p.loanCase.caseNo}`,
+          body: `${c.percent}% · ₹${c.amount.toLocaleString('en-IN')} (was ₹${Number(prev.amount).toLocaleString('en-IN')}). ${b.reason}`,
+          caseId: p.loanCase.id,
+          sentById: user.id,
+        });
+      }
       await this.audit.log(
         tx,
         user,
-        { action: 'PAYOUT_ADJUSTED', entity: 'payout', entityId: id, before: { amount: p.amount, percent: p.percentSnapshot }, after: { amount, percent, reason: b.reason } },
+        {
+          action: 'PAYOUT_ADJUSTED',
+          entity: 'payout',
+          entityId: id,
+          before: { amount: p.amount, percent: p.percentSnapshot, ...(counterpart ? { dsaAmount: counterpart.prev.amount, dsaPercent: counterpart.prev.percentSnapshot } : {}) },
+          after: { amount, percent, reason: b.reason, ...(counterpart ? { dsaAmount: counterpart.amount, dsaPercent: counterpart.percent } : {}) },
+        },
         meta,
       );
-      await this.notify.toUsers(tx, [p.beneficiaryId], {
-        title: `Payout changed for ${p.loanCase.caseNo}`,
-        body: `${percent}% · ₹${amount.toLocaleString('en-IN')} (was ₹${Number(p.amount).toLocaleString('en-IN')}). ${b.reason}`,
-        caseId: p.loanCase.id,
-        sentById: user.id,
-      });
-      return { id, amount: updated.amount, percentSnapshot: updated.percentSnapshot, version: updated.version };
+      return { id, amount: updated.amount, percentSnapshot: updated.percentSnapshot, version: updated.version, dsaPercent: counterpart?.percent ?? null };
     });
   }
 

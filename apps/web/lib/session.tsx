@@ -15,6 +15,7 @@ export interface Me {
   dsa: { id: string; name: string; mobile: string } | null;
   kycStatus: string | null;
   lastLoginAt: string | null;
+  payoutSlab: { percent: number; effectiveFrom: string; setByName: string | null; setByRole: string | null; reason: string } | null;
 }
 
 export function useMe() {

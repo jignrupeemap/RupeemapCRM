@@ -397,15 +397,38 @@ export class CasesService {
     return result;
   }
 
-  /** Handover → payout PENDING for the DSA and, if any, the Team Partner. Rate is snapshotted. */
+  /**
+   * Handover → payout PENDING, rates snapshotted. The DSA's slab is the total
+   * payout for the case: a Team Partner's share is carved out of it and the
+   * DSA keeps the rest (slab 0.90%, Team Partner 0.50% → DSA 0.40%).
+   */
   private async createPayouts(tx: Tx, c: { id: string; caseNo: string; dsaId: string; teamPartnerId: string | null; handoverAmount: Prisma.Decimal | null; bankId: string; loanType: string }, actor: AuthUser) {
     const base = Number(c.handoverAmount ?? 0);
     const out = [];
-    const beneficiaries: { id: string; role: 'DSA' | 'TEAM_PARTNER' }[] = [{ id: c.dsaId, role: 'DSA' }];
-    if (c.teamPartnerId) beneficiaries.push({ id: c.teamPartnerId, role: 'TEAM_PARTNER' });
-    for (const b of beneficiaries) {
-      const rate = await this.findRate(tx, b.id, c.bankId, c.loanType);
-      const percent = rate ? Number(rate.percent) : 0;
+    const dsaRate = await this.findRate(tx, c.dsaId, c.bankId, c.loanType);
+    const slab = dsaRate ? Number(dsaRate.percent) : 0;
+    const tpRate = c.teamPartnerId ? await this.findRate(tx, c.teamPartnerId, c.bankId, c.loanType) : null;
+    const tpShare = c.teamPartnerId ? Math.min(tpRate ? Number(tpRate.percent) : 0, slab) : 0;
+    const lines: { id: string; role: 'DSA' | 'TEAM_PARTNER'; percent: number; rate: typeof dsaRate | typeof tpRate; note: string | null }[] = [
+      {
+        id: c.dsaId,
+        role: 'DSA',
+        percent: roundPct(slab - tpShare),
+        rate: dsaRate,
+        note: !dsaRate ? 'DSA payout slab not set; Admin to confirm the rate' : c.teamPartnerId ? `Slab ${slab}% less Team Partner share ${tpShare}%` : null,
+      },
+    ];
+    if (c.teamPartnerId) {
+      lines.push({
+        id: c.teamPartnerId,
+        role: 'TEAM_PARTNER',
+        percent: roundPct(tpShare),
+        rate: tpRate,
+        note: !tpRate ? 'Team Partner payout % not set; DSA to set it' : tpRate && Number(tpRate.percent) > slab ? `Capped at the DSA slab of ${slab}%` : null,
+      });
+    }
+    for (const b of lines) {
+      const { rate, percent } = b;
       const p = await tx.payout.create({
         data: {
           caseId: c.id,
@@ -416,7 +439,7 @@ export class CasesService {
           rateId: rate?.id ?? null,
           amount: computePayoutAmount(base, percent),
           status: 'PENDING',
-          remarks: rate ? null : 'Payout percentage not set; Admin to confirm the rate',
+          remarks: b.note,
         },
       });
       await tx.payoutHistory.create({
@@ -520,4 +543,8 @@ function endOfDay(d: Date) {
   const e = new Date(d);
   e.setHours(23, 59, 59, 999);
   return e;
+}
+
+function roundPct(n: number) {
+  return Math.max(0, Math.round(n * 1000) / 1000);
 }

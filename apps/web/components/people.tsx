@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { toast } from 'sonner';
-import { ROLE_LABELS, type Role } from '@rupeemap/shared';
+import { PAYOUT_LIMITS, ROLE_LABELS, type Role } from '@rupeemap/shared';
 import { api, ApiError } from '@/lib/api';
 import { fmtDate, formatINRCompact, initials } from '@/lib/format';
 import { useCan, useMe } from '@/lib/session';
@@ -298,6 +298,7 @@ function AddPersonModal({ onClose }: { onClose: () => void }) {
 
 function ActionModal({ p, kind, onClose }: { p: Person; kind: 'rate' | 'status' | 'reset' | 'promote' | 'kyc'; onClose: () => void }) {
   const qc = useQueryClient();
+  const { data: me } = useMe();
   const [reason, setReason] = useState('');
   const [percent, setPercent] = useState(p.payoutPercent?.toString() ?? '');
   const [from, setFrom] = useState(new Date().toISOString().slice(0, 10));
@@ -340,7 +341,18 @@ function ActionModal({ p, kind, onClose }: { p: Person; kind: 'rate' | 'status' 
       <div className="grid gap-4">
         {kind === 'rate' && (
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Payout percentage" required htmlFor="pc" hint={p.payoutPercent !== null ? `Current ${p.payoutPercent}%` : 'Not set yet'}>
+            <Field
+              label={p.role === 'DSA' ? 'Payout slab % (total per case)' : 'Payout % (share of the DSA slab)'}
+              required
+              htmlFor="pc"
+              hint={`${p.payoutPercent !== null ? `Current ${p.payoutPercent}%. ` : 'Not set yet. '}${
+                p.role === 'DSA'
+                  ? me?.role === 'ADMIN'
+                    ? `Up to ${PAYOUT_LIMITS.STANDARD_MAX}%; as Admin you can go up to ${PAYOUT_LIMITS.ADMIN_MAX}%.`
+                    : `Up to ${PAYOUT_LIMITS.STANDARD_MAX}%.`
+                  : `Comes out of the DSA's slab; cannot exceed it or ${PAYOUT_LIMITS.STANDARD_MAX}%.`
+              }`}
+            >
               <Input id="pc" inputMode="decimal" value={percent} onChange={(e) => setPercent(e.target.value)} />
             </Field>
             <Field label="Effective from" required htmlFor="ef" hint="Existing payouts keep their old rate">

@@ -78,8 +78,10 @@ describe('Loan case lifecycle', () => {
     expect(r.body).toMatchObject({ success: false, code: 'FORBIDDEN' });
   });
 
-  it('Admin creates a DSA with a payout percentage', async () => {
-    const r = await admin.post('/api/v1/users').set(H).send({ name: 'Kiran Shah', mobile: dsaMobile, role: 'DSA', payoutPercent: 1 });
+  it('Admin creates a DSA with a payout slab (never above 0.98%)', async () => {
+    const tooHigh = await admin.post('/api/v1/users').set(H).send({ name: 'Kiran Shah', mobile: dsaMobile, role: 'DSA', payoutPercent: 0.99 });
+    expect(tooHigh.body.code).toBe('VALIDATION_ERROR');
+    const r = await admin.post('/api/v1/users').set(H).send({ name: 'Kiran Shah', mobile: dsaMobile, role: 'DSA', payoutPercent: 0.9 });
     expect(r.status, JSON.stringify(r.body)).toBe(201);
     expect(r.body.data.status).toBe('PENDING_ACTIVATION');
     dsaId = r.body.data.id;
@@ -186,8 +188,9 @@ describe('Loan case lifecycle', () => {
     const d = payouts.find((p) => p.beneficiaryId === dsaId)!;
     const t = payouts.find((p) => p.beneficiaryId === tpId)!;
     expect(d.status).toBe('PENDING');
-    expect(Number(d.percentSnapshot)).toBe(1);
-    expect(Number(d.amount)).toBe(42000);
+    // Slab 0.90%: the Team Partner's 0.60% comes out of it, the DSA keeps 0.30%.
+    expect(Number(d.percentSnapshot)).toBe(0.3);
+    expect(Number(d.amount)).toBe(12600);
     expect(Number(t.percentSnapshot)).toBe(0.6);
     expect(Number(t.amount)).toBe(25200);
   });
@@ -213,7 +216,7 @@ describe('Loan case lifecycle', () => {
     expect(ownLine.canAdjust).toBe(false);
     // Not their own line, not above their own 1%, and never by the Team Partner.
     expect((await dsa.patch(`/api/v1/payouts/${ownLine.id}/amount`).set(H).send({ version: ownLine.version, percent: 2, reason: 'raise mine' })).status).toBe(403);
-    const over = await dsa.patch(`/api/v1/payouts/${tpLine.id}/amount`).set(H).send({ version: tpLine.version, percent: 1.5, reason: 'too much' });
+    const over = await dsa.patch(`/api/v1/payouts/${tpLine.id}/amount`).set(H).send({ version: tpLine.version, percent: 0.95, reason: 'too much' });
     expect(over.body.code).toBe('VALIDATION_ERROR');
     const tpTry = await tp.patch(`/api/v1/payouts/${tpLine.id}/amount`).set(H).send({ version: tpLine.version, percent: 0.9, reason: 'give me more' });
     expect(tpTry.status, JSON.stringify(tpTry.body)).toBe(403);
@@ -221,6 +224,9 @@ describe('Loan case lifecycle', () => {
     const byAmount = await dsa.patch(`/api/v1/payouts/${tpLine.id}/amount`).set(H).send({ version: tpLine.version, amount: 29400, reason: 'Special case, customer referred by Ravi' });
     expect(byAmount.status, JSON.stringify(byAmount.body)).toBe(200);
     expect(Number(byAmount.body.data.percentSnapshot)).toBe(0.7);
+    expect(Number(byAmount.body.data.dsaPercent)).toBe(0.2); // DSA keeps the rest of the 0.90% slab
+    const dsaAfter = await prisma.payout.findUniqueOrThrow({ where: { id: ownLine.id } });
+    expect(Number(dsaAfter.amount)).toBe(8400);
     const hist = await prisma.payoutHistory.findFirst({ where: { payoutId: tpLine.id }, orderBy: { changedAt: 'desc' } });
     expect(Number(hist!.prevAmount)).toBe(25200);
     expect(Number(hist!.newAmount)).toBe(29400);
@@ -231,6 +237,7 @@ describe('Loan case lifecycle', () => {
     const back = await exec.patch(`/api/v1/payouts/${tpLine.id}/amount`).set(H).send({ version: byAmount.body.data.version, percent: 0.6, reason: 'Back to standard rate' });
     expect(back.status, JSON.stringify(back.body)).toBe(200);
     expect(Number(back.body.data.amount)).toBe(25200);
+    expect(Number((await prisma.payout.findUniqueOrThrow({ where: { id: ownLine.id } })).percentSnapshot)).toBe(0.3);
   });
 
   it('first payout KYC blocks Paid until Admin approves', async () => {
@@ -258,7 +265,7 @@ describe('Loan case lifecycle', () => {
     p = (await dsa.get('/api/v1/payouts').query({ status: 'PAID' })).body.data[0];
     expect(p.paymentRef).toBe('UTR123');
     const history = await prisma.payoutHistory.count({ where: { payoutId: p.id } });
-    expect(history).toBe(3);
+    expect(history).toBe(5); // created, two split changes from the Team Partner adjustment, confirmed, paid
   });
 
   it('other DSAs cannot see or touch the case', async () => {
@@ -292,7 +299,7 @@ describe('Loan case lifecycle', () => {
     const t = await prisma.payout.findFirstOrThrow({ where: { caseId, beneficiaryId: tpId } });
     expect(Number(t.amount)).toBe(24000); // still 0.6%, pending
     const d = await prisma.payout.findFirstOrThrow({ where: { caseId, beneficiaryId: dsaId } });
-    expect(Number(d.amount)).toBe(42000); // already paid, untouched
+    expect(Number(d.amount)).toBe(12600); // already paid, untouched
   });
 
   it('blocking a user ends their session immediately', async () => {
