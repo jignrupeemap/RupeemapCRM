@@ -1,6 +1,6 @@
 'use client';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { Plus, Search, SlidersHorizontal, Wallet, X } from 'lucide-react';
+import { MessageCircle, Phone, Plus, Search, SlidersHorizontal, Wallet, X } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
@@ -24,8 +24,43 @@ interface CaseRow {
   customer: { name: string; mobile: string | null };
   bank: { id: string; name: string };
   project: { id: string; name: string } | null;
-  dsa: { id: string; name: string } | null;
-  teamPartner: { id: string; name: string } | null;
+  dsa: { id: string; name: string; mobile: string } | null;
+  teamPartner: { id: string; name: string; mobile: string } | null;
+}
+
+/** Who brought the case in: the Team Partner if any, otherwise the DSA ("Self" for the DSA viewing their own). */
+function SourcedBy({ c, role, compact }: { c: CaseRow; role?: string; compact?: boolean }) {
+  const person = c.teamPartner ?? c.dsa;
+  if (!person) return <span className="text-ink-400">—</span>;
+  const self = role === 'DSA' && !c.teamPartner;
+  const label = self ? 'Self' : person.name;
+  const sub = self ? null : c.teamPartner ? (role === 'DSA' ? 'Team Partner' : `Team Partner · ${c.dsa?.name ?? ''}`) : 'DSA Partner';
+  const text = `Hello ${person.name}, this is about case ${c.caseNo} (${c.customer.name}).`;
+  return (
+    <div className={cx('flex items-center gap-2', compact && 'justify-between')}>
+      <div className="min-w-0">
+        <p className={cx('truncate font-semibold', self ? 'text-teal-800' : 'text-ink')}>{label}</p>
+        {sub && !compact && <p className="truncate text-xs text-ink-500">{sub}</p>}
+      </div>
+      {!self && (
+        <div className="flex shrink-0 gap-1" onClick={(e) => e.stopPropagation()}>
+          <a href={`tel:+91${person.mobile}`} className="rounded-lg p-1.5 text-ink-600 ring-1 ring-inset ring-ink-200 hover:bg-ink-100" aria-label={`Call ${person.name}`} title={`Call +91 ${person.mobile}`}>
+            <Phone className="h-3.5 w-3.5" />
+          </a>
+          <a
+            href={`https://wa.me/91${person.mobile}?text=${encodeURIComponent(text)}`}
+            target="_blank"
+            rel="noreferrer"
+            className="rounded-lg p-1.5 text-emerald-700 ring-1 ring-inset ring-emerald-200 hover:bg-emerald-50"
+            aria-label={`WhatsApp ${person.name}`}
+            title="WhatsApp"
+          >
+            <MessageCircle className="h-3.5 w-3.5" />
+          </a>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function CasesPage() {
@@ -203,12 +238,13 @@ function Cases() {
                   <thead className="bg-ink-50 text-left text-xs font-semibold uppercase tracking-wide text-ink-500">
                     <tr>
                       <th className="px-4 py-3">Customer</th>
+                      {me?.role !== 'TEAM_PARTNER' && <th className="px-4 py-3">Sourced by</th>}
                       <th className="px-4 py-3">Loan type</th>
                       <th className="px-4 py-3">Loan account</th>
                       <th className="px-4 py-3">Status</th>
                       <th className="hidden px-4 py-3 text-right lg:table-cell">Amount</th>
                       <th className="hidden px-4 py-3 xl:table-cell">Bank</th>
-                      <th className="hidden px-4 py-3 xl:table-cell">{me?.role === 'TEAM_PARTNER' ? 'Project' : 'Partner'}</th>
+                      <th className="hidden px-4 py-3 xl:table-cell">Project</th>
                       <th className="hidden px-4 py-3 lg:table-cell">Created</th>
                     </tr>
                   </thead>
@@ -219,8 +255,13 @@ function Cases() {
                           <Link href={`/cases/${c.id}`} className="font-semibold text-ink hover:text-teal-700 hover:underline">
                             {c.customer.name}
                           </Link>
-                          <p className="text-xs text-ink-500">{c.caseNo}</p>
+                          <p className="whitespace-nowrap text-xs text-ink-500">{c.caseNo}</p>
                         </td>
+                        {me?.role !== 'TEAM_PARTNER' && (
+                          <td className="max-w-[220px] px-4 py-3">
+                            <SourcedBy c={c} role={me?.role} />
+                          </td>
+                        )}
                         <td className="px-4 py-3 text-ink-700">{loanTypeName(c.loanType)}</td>
                         <td className="px-4 py-3 tabular-nums text-ink-700">{c.loanAccountNo ?? <span className="text-ink-400">—</span>}</td>
                         <td className="px-4 py-3">
@@ -229,7 +270,7 @@ function Cases() {
                         </td>
                         <td className="hidden px-4 py-3 text-right tabular-nums lg:table-cell">{formatINR(c.handoverAmount ?? c.appliedAmount, { whole: true })}</td>
                         <td className="hidden px-4 py-3 text-ink-700 xl:table-cell">{c.bank.name}</td>
-                        <td className="hidden px-4 py-3 text-ink-700 xl:table-cell">{me?.role === 'TEAM_PARTNER' ? c.project?.name ?? '—' : c.teamPartner?.name ?? c.dsa?.name}</td>
+                        <td className="hidden px-4 py-3 text-ink-700 xl:table-cell">{c.project?.name ?? '—'}</td>
                         <td className="hidden px-4 py-3 text-ink-500 lg:table-cell">{fmtDate(c.createdAt)}</td>
                       </tr>
                     ))}
@@ -240,8 +281,8 @@ function Cases() {
             {/* Mobile cards */}
             <ul className="space-y-2 md:hidden">
               {list.data.data.map((c) => (
-                <li key={c.id}>
-                  <Link href={`/cases/${c.id}`} className="block rounded-2xl border border-ink-200/70 bg-white p-4 shadow-card active:bg-ink-50">
+                <li key={c.id} className="rounded-2xl border border-ink-200/70 bg-white shadow-card">
+                  <Link href={`/cases/${c.id}`} className="block rounded-t-2xl p-4 pb-3 active:bg-ink-50">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <p className="truncate font-semibold text-ink">{c.customer.name}</p>
@@ -254,6 +295,14 @@ function Cases() {
                       <span className="tabular-nums font-semibold text-ink-700">{formatINR(c.handoverAmount ?? c.appliedAmount, { whole: true })}</span>
                     </div>
                   </Link>
+                  {me?.role !== 'TEAM_PARTNER' && (
+                    <div className="flex items-center gap-2 border-t border-ink-100 px-4 py-2 text-sm">
+                      <span className="shrink-0 text-xs text-ink-500">Sourced by</span>
+                      <div className="min-w-0 flex-1">
+                        <SourcedBy c={c} role={me?.role} compact />
+                      </div>
+                    </div>
+                  )}
                 </li>
               ))}
             </ul>

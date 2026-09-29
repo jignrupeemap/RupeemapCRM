@@ -225,7 +225,8 @@ export class CasesService {
 
   private async names(ids: (string | null)[]) {
     const uniq = [...new Set(ids.filter((x): x is string => !!x))];
-    const users = uniq.length ? await this.prisma.user.findMany({ where: { id: { in: uniq } }, select: { id: true, name: true } }) : [];
+    // Mobile is included so a DSA can call or WhatsApp whoever sourced a case, straight from the list.
+    const users = uniq.length ? await this.prisma.user.findMany({ where: { id: { in: uniq } }, select: { id: true, name: true, mobile: true } }) : [];
     return new Map(users.map((u) => [u.id, u]));
   }
 
