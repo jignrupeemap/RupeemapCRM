@@ -10,6 +10,7 @@ import { api, ApiError } from '@/lib/api';
 import { fmtDateTime, initials } from '@/lib/format';
 import { useMe } from '@/lib/session';
 import { PageHeader } from '@/components/shell';
+import { KycPanel } from '@/components/kyc';
 import { Badge, Button, Card, DetailGrid, Field, Input } from '@/components/ui';
 
 
@@ -31,7 +32,7 @@ export default function ProfilePage() {
   });
   if (!me) return null;
   return (
-    <div className="mx-auto max-w-3xl space-y-5">
+    <div className="mx-auto max-w-4xl space-y-5">
       <PageHeader title="Profile" />
       <Card className="p-5">
         <div className="mb-5 flex items-center gap-4">
@@ -51,6 +52,15 @@ export default function ProfilePage() {
           ['Last sign-in', fmtDateTime(me.lastLoginAt)],
         ]} />
       </Card>
+      {(me.role === 'DSA' || me.role === 'TEAM_PARTNER') && me.kycStatus && (
+        <section id="kyc" className="scroll-mt-20 space-y-3">
+          <div>
+            <h2 className="font-display text-lg font-bold">First payout KYC documents</h2>
+            <p className="text-sm text-ink-500">Upload each document as a PDF or photo (up to 10 MB). Rupeemap Admin verifies them before your first payout is paid.</p>
+          </div>
+          <KycPanel userId={me.id} />
+        </section>
+      )}
       <Card className="p-5">
         <h2 className="mb-4 font-display font-bold">Change password</h2>
         <form className="grid gap-4 sm:max-w-sm" onSubmit={(e) => (e.preventDefault(), change.mutate())}>

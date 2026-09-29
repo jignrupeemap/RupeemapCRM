@@ -88,7 +88,7 @@ export const KYC_DOC_LABELS: Record<KycDocType, string> = {
   GST_CERTIFICATE: 'GST certificate',
 };
 export const KYC_DOC_HINTS: Record<KycDocType, string> = {
-  PAN: 'Clear copy of the partner’s PAN card',
+  PAN: 'Clear copy of the PAN card',
   AADHAAR: 'Upload the masked Aadhaar (first 8 digits hidden), as UIDAI advises',
   CANCELLED_CHEQUE: 'Cheque of the bank account payouts will be paid into',
   PHOTO: 'Recent passport-size photograph',

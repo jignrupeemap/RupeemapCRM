@@ -7,6 +7,7 @@ import { useState } from 'react';
 import { api } from '@/lib/api';
 import { formatINRCompact } from '@/lib/format';
 import { Card, cx, EmptyState, ErrorState, Kpi, Select, Skeleton } from './ui';
+import { DateRangeFilter, DEFAULT_RANGE, rangeToParams, type RangeValue } from './date-range';
 
 interface Row {
   projectId: string;
@@ -41,25 +42,21 @@ const SORTS = [
 ] as const;
 type SortKey = (typeof SORTS)[number]['key'];
 
-const RANGES = [
-  { key: '', label: 'All time' },
-  { key: '30', label: 'Last 30 days' },
-  { key: '90', label: 'Last 90 days' },
-  { key: '365', label: 'Last 12 months' },
-];
 
 export function ProjectAnalytics() {
   const [sort, setSort] = useState<SortKey>('logins');
   const [dir, setDir] = useState<'desc' | 'asc'>('desc');
-  const [range, setRange] = useState('');
+  const [range, setRange] = useState<RangeValue>(DEFAULT_RANGE);
   const [bankId, setBankId] = useState('');
   const [loanType, setLoanType] = useState('');
   const banks = useQuery({ queryKey: ['banks'], queryFn: () => api.get<{ id: string; name: string }[]>('/banks'), staleTime: 600_000 });
   const loanTypes = useQuery({ queryKey: ['loan-types'], queryFn: () => api.get<{ code: string; name: string }[]>('/loan-types'), staleTime: 600_000 });
-  const from = range ? new Date(Date.now() - Number(range) * 86_400_000).toISOString() : undefined;
+  const { from, to } = rangeToParams(range);
+  const rangeReady = range.key !== 'custom' || !range.from || !range.to || range.from <= range.to;
   const report = useQuery({
-    queryKey: ['reports', 'projects', sort, dir, range, bankId, loanType],
-    queryFn: () => api.get<Report>('/reports/projects', { sort, dir, from, bankId, loanType }),
+    queryKey: ['reports', 'projects', sort, dir, from, to, bankId, loanType],
+    queryFn: () => api.get<Report>('/reports/projects', { sort, dir, from, to, bankId, loanType }),
+    enabled: rangeReady,
     placeholderData: keepPreviousData,
   });
   const active = SORTS.find((s) => s.key === sort)!;
@@ -68,14 +65,8 @@ export function ProjectAnalytics() {
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-2 sm:grid-cols-3">
-        <Select value={range} onChange={(e) => setRange(e.target.value)} aria-label="Date range">
-          {RANGES.map((r) => (
-            <option key={r.key} value={r.key}>
-              {r.label}
-            </option>
-          ))}
-        </Select>
+      <DateRangeFilter value={range} onChange={setRange} className="sm:items-start" />
+      <div className="grid gap-2 sm:grid-cols-2 lg:max-w-2xl">
         <Select value={bankId} onChange={(e) => setBankId(e.target.value)} aria-label="Bank">
           <option value="">All banks</option>
           {banks.data?.map((b) => (

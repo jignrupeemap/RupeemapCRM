@@ -57,10 +57,16 @@ describe('First payout KYC documents', () => {
     expect(badType.status).toBe(400);
   });
 
-  it('partners cannot upload, even for themselves', async () => {
-    const me = await login(partnerMobile);
-    const r = await me.post(`/api/v1/kyc/${partnerId}/documents/PAN`).set(H).attach('file', PNG, 'pan.png');
+  it('a partner can upload their own documents but never anyone else’s', async () => {
+    const other = await login('9000000004');
+    const r = await other.post(`/api/v1/kyc/${partnerId}/documents/PAN`).set(H).attach('file', PNG, 'pan.png');
     expect(r.status).toBe(403);
+    expect((await other.put(`/api/v1/kyc/${partnerId}/gst`).set(H).send({ gstApplicable: true })).status).toBe(403);
+    expect((await other.post(`/api/v1/kyc/${partnerId}/submit`).set(H)).status).toBe(403);
+    const ravi = await prisma.user.findUniqueOrThrow({ where: { mobile: '9000000004' } });
+    const own = await other.get(`/api/v1/kyc/${ravi.id}`);
+    expect(own.status).toBe(200);
+    expect(own.body.data.isSelf).toBe(true);
   });
 
   it('uploads become versions; the set is complete only with every required document', async () => {
@@ -116,9 +122,13 @@ describe('First payout KYC documents', () => {
     const rej = await admin.post(`/api/v1/users/${partnerId}/kyc`).set(H).send({ decision: 'REJECT', reason: 'Photo is blurred' });
     expect(rej.status).toBe(201);
     expect(rej.body.data.status).toBe('RESUBMISSION_REQUIRED');
-    const re = await exec.post(`/api/v1/kyc/${partnerId}/documents/PHOTO`).set(H).attach('file', PNG, 'photo-new.png');
+    // The partner fixes it themselves and sends it back for verification.
+    const me = await login(partnerMobile);
+    const re = await me.post(`/api/v1/kyc/${partnerId}/documents/PHOTO`).set(H).attach('file', PNG, 'photo-new.png');
+    expect(re.status, JSON.stringify(re.body)).toBe(201);
     expect(re.body.data.status).toBe('UPLOADED');
-    await exec.post(`/api/v1/kyc/${partnerId}/submit`).set(H);
+    expect((await me.post(`/api/v1/kyc/${partnerId}/submit`).set(H)).status).toBe(201);
+    expect((await me.post(`/api/v1/users/${partnerId}/kyc`).set(H).send({ decision: 'APPROVE' })).status).toBe(403);
     const ok = await admin.post(`/api/v1/users/${partnerId}/kyc`).set(H).send({ decision: 'APPROVE' });
     expect(ok.body.data.status).toBe('APPROVED');
     expect((await exec.post(`/api/v1/kyc/${partnerId}/documents/PAN`).set(H).attach('file', PNG, 'x.png')).status).toBe(409);

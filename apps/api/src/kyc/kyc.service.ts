@@ -9,6 +9,10 @@ import { can, type AuthUser, type RequestMeta } from '../common/auth-context';
 
 const isStaff = (u: AuthUser) => u.role === 'ADMIN' || u.role === 'EXECUTIVE';
 
+/** Staff with KYC_UPLOAD can manage anyone's KYC; a DSA or Team Partner can manage only their own. */
+const canManage = (u: AuthUser, userId: string) =>
+  (isStaff(u) && can(u, 'KYC_UPLOAD')) || ((u.role === 'DSA' || u.role === 'TEAM_PARTNER') && u.id === userId);
+
 /** Statuses in which documents can still be added or replaced. */
 const EDITABLE: KycStatus[] = ['DOCUMENTS_PENDING', 'UPLOADED', 'REJECTED', 'RESUBMISSION_REQUIRED'];
 
@@ -114,13 +118,14 @@ export class KycService {
         createdAt: d.createdAt,
         file: d.document,
       })),
-      canUpload: can(actor, 'KYC_UPLOAD') && EDITABLE.includes(p.status as KycStatus),
+      canUpload: canManage(actor, userId) && EDITABLE.includes(p.status as KycStatus),
+      isSelf: actor.id === userId,
       canVerify: can(actor, 'KYC_VERIFY') && p.status === 'UNDER_ADMIN_VERIFICATION',
     };
   }
 
   async upload(actor: AuthUser, userId: string, type: KycDocType, file: { buffer: Buffer; originalname: string; size: number }, meta: RequestMeta) {
-    if (!can(actor, 'KYC_UPLOAD') || !isStaff(actor)) throw forbidden();
+    if (!canManage(actor, userId)) throw forbidden();
     const p = await this.prisma.kycProfile.findUnique({ where: { userId } });
     if (!p) throw notFound('KYC profile');
     if (!EDITABLE.includes(p.status as KycStatus)) {
@@ -150,7 +155,7 @@ export class KycService {
   }
 
   async setGst(actor: AuthUser, userId: string, gstApplicable: boolean, meta: RequestMeta) {
-    if (!can(actor, 'KYC_UPLOAD') || !isStaff(actor)) throw forbidden();
+    if (!canManage(actor, userId)) throw forbidden();
     const p = await this.prisma.kycProfile.findUnique({ where: { userId }, include: { documents: { where: { current: true }, select: { type: true } } } });
     if (!p) throw notFound('KYC profile');
     if (!EDITABLE.includes(p.status as KycStatus)) throw new AppError('INVALID_TRANSITION', 'GST can only be changed while documents are being collected');
@@ -166,19 +171,19 @@ export class KycService {
 
   /** Executive sends a complete set to Admin. */
   async submit(actor: AuthUser, userId: string, meta: RequestMeta) {
-    if (!can(actor, 'KYC_UPLOAD') || !isStaff(actor)) throw forbidden();
+    if (!canManage(actor, userId)) throw forbidden();
     const p = await this.prisma.kycProfile.findUnique({ where: { userId }, include: { user: true, documents: { where: { current: true }, select: { type: true } } } });
     if (!p) throw notFound('KYC profile');
     const missing = requiredKycDocs(p.gstApplicable).filter((t) => !p.documents.some((d) => d.type === t));
     if (missing.length) throw new AppError('VALIDATION_ERROR', `Upload ${missing.map((t) => KYC_DOC_LABELS[t]).join(', ')} first`);
     if (p.status !== 'UPLOADED') throw new AppError('INVALID_TRANSITION', 'Only a complete, uploaded KYC can be sent for verification');
-    const admins = await this.prisma.user.findMany({ where: { role: 'ADMIN', status: 'ACTIVE', deletedAt: null }, select: { id: true } });
+    const staff = await this.prisma.user.findMany({ where: { role: { in: ['ADMIN', 'EXECUTIVE'] }, status: 'ACTIVE', deletedAt: null }, select: { id: true } });
     return this.prisma.$transaction(async (tx) => {
       await tx.kycProfile.update({ where: { id: p.id }, data: { status: 'UNDER_ADMIN_VERIFICATION', submittedAt: new Date(), rejectionReason: null } });
       await this.audit.log(tx, actor, { action: 'KYC_SUBMITTED', entity: 'kyc', entityId: p.id, before: { status: p.status }, after: { status: 'UNDER_ADMIN_VERIFICATION' } }, meta);
-      await this.notify.toUsers(tx, admins.map((a) => a.id), {
+      await this.notify.toUsers(tx, staff.map((a) => a.id), {
         title: `KYC ready to verify: ${p.user.name}`,
-        body: `${actor.name} uploaded all first payout KYC documents. Open KYC to approve or reject.`,
+        body: `${actor.id === userId ? `${actor.name} uploaded their own` : `${actor.name} uploaded all`} first payout KYC documents. Admin can approve or send back from First Payout KYC.`,
         priority: 'HIGH',
         sentById: actor.id,
       });

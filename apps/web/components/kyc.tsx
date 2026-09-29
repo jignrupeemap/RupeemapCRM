@@ -46,6 +46,7 @@ interface KycDetail {
   documents: KycDoc[];
   canUpload: boolean;
   canVerify: boolean;
+  isSelf: boolean;
 }
 
 const fileUrl = (id: string) => `/api/v1/kyc/documents/${id}/file`;
@@ -67,7 +68,7 @@ export function KycPanel({ userId }: { userId: string }) {
   });
   const submit = useMutation({
     mutationFn: () => api.post(`/kyc/${userId}/submit`),
-    onSuccess: () => (toast.success('Sent to Admin for verification'), refresh()),
+    onSuccess: () => (toast.success('Sent for verification'), refresh(), qc.invalidateQueries({ queryKey: ['me'] })),
     onError: (e: ApiError) => toast.error(e.message),
   });
 
@@ -109,14 +110,14 @@ export function KycPanel({ userId }: { userId: string }) {
           {k.canUpload && (
             <label className="mt-3 inline-flex items-center gap-2 text-sm font-medium">
               <input type="checkbox" className="h-4 w-4" checked={k.gstApplicable} disabled={gst.isPending} onChange={(e) => gst.mutate(e.target.checked)} />
-              Partner is GST registered (GST certificate required)
+              {k.isSelf ? 'I am GST registered (GST certificate required)' : 'Partner is GST registered (GST certificate required)'}
             </label>
           )}
         </div>
         <div className="flex flex-wrap gap-2">
           {k.canUpload && k.status === 'UPLOADED' && (
             <Button variant="teal" loading={submit.isPending} onClick={() => submit.mutate()}>
-              Send to Admin for verification
+              {k.isSelf ? 'Send for verification' : 'Send to Admin for verification'}
             </Button>
           )}
           {k.canVerify && (
@@ -129,7 +130,8 @@ export function KycPanel({ userId }: { userId: string }) {
               </Button>
             </>
           )}
-          {k.status === 'UNDER_ADMIN_VERIFICATION' && !k.canVerify && <p className="text-sm text-ink-500">Waiting for Admin to verify.</p>}
+          {k.status === 'UNDER_ADMIN_VERIFICATION' && !k.canVerify && <p className="text-sm text-ink-500">Waiting for Rupeemap Admin to verify.</p>}
+          {k.isSelf && k.canUpload && k.status !== 'UPLOADED' && k.missing.length > 0 && <p className="text-sm text-ink-500">Upload the missing documents below, then send them for verification.</p>}
         </div>
       </Card>
 

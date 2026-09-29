@@ -1,5 +1,5 @@
 'use client';
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import {
   BookUser,
   Building2,
@@ -14,6 +14,7 @@ import {
   AlarmClock,
   ArrowUpRight,
   UserMinus,
+  Upload,
 } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
@@ -23,6 +24,7 @@ import { api } from '@/lib/api';
 import { fmtDate, formatINR, formatINRCompact, loanTypeName } from '@/lib/format';
 import { useMe } from '@/lib/session';
 import { HeroSlider, type Slide } from '@/components/hero-slider';
+import { DateRangeFilter, DEFAULT_RANGE, rangeToParams, type RangeValue } from '@/components/date-range';
 import { Banner, Card, cx, EmptyState, Kpi, SectionTitle, Skeleton, StatusChip } from '@/components/ui';
 
 const TrendChart = dynamic(() => import('@/components/trend-chart'), { ssr: false, loading: () => <Skeleton className="h-56" /> });
@@ -61,26 +63,14 @@ const QUICK: { href: string; label: string; icon: typeof Plus; perm?: Permission
   { href: '/assistance', label: 'Need Assistance', icon: LifeBuoy, perm: 'SUPPORT_CREATE', tone: 'bg-brand-redsoft text-red-800' },
 ];
 
-const RANGES = [
-  { key: 'all', label: 'All time' },
-  { key: 'month', label: 'This month' },
-  { key: 'week', label: 'Last 7 days' },
-  { key: 'today', label: 'Today' },
-] as const;
-
-function rangeParams(k: string) {
-  const now = new Date();
-  if (k === 'today') return { from: new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString() };
-  if (k === 'week') return { from: new Date(Date.now() - 7 * 86400000).toISOString() };
-  if (k === 'month') return { from: new Date(now.getFullYear(), now.getMonth(), 1).toISOString() };
-  return {};
-}
 
 export default function DashboardPage() {
   const { data: me } = useMe();
-  const [range, setRange] = useState<string>('all');
+  const [range, setRange] = useState<RangeValue>(DEFAULT_RANGE);
+  const params = rangeToParams(range);
+  const rangeReady = range.key !== 'custom' || !range.from || !range.to || range.from <= range.to;
   const sliders = useQuery({ queryKey: ['sliders'], queryFn: () => api.get<Slide[]>('/sliders/active'), staleTime: 300_000 });
-  const summary = useQuery({ queryKey: ['dashboard', range], queryFn: () => api.get<Summary>('/dashboard/summary', rangeParams(range)) });
+  const summary = useQuery({ queryKey: ['dashboard', params], queryFn: () => api.get<Summary>('/dashboard/summary', params), enabled: rangeReady, placeholderData: keepPreviousData });
   const isStaff = me?.role === 'ADMIN' || me?.role === 'EXECUTIVE';
   const inactivity = useQuery({
     queryKey: ['inactivity', 'summary'],
@@ -111,8 +101,20 @@ export default function DashboardPage() {
       {sliders.isLoading ? <Skeleton className="h-[210px] rounded-3xl lg:h-[34vh]" /> : <HeroSlider slides={sliders.data ?? []} />}
 
       {(me.role === 'DSA' || me.role === 'TEAM_PARTNER') && me.kycStatus && me.kycStatus !== 'APPROVED' && (
-        <Banner title="First payout KYC verification pending" tone="gold">
-          PAN, Aadhaar, cancelled cheque{me.role === 'DSA' ? ', GST certificate (if applicable)' : ''} and a photograph are needed before your first payout can be released. Share them with your Rupeemap executive.
+        <Banner
+          title={me.kycStatus === 'UNDER_ADMIN_VERIFICATION' ? 'First payout KYC is being verified' : me.kycStatus === 'RESUBMISSION_REQUIRED' ? 'First payout KYC: new documents needed' : 'First payout KYC verification pending'}
+          tone={me.kycStatus === 'UNDER_ADMIN_VERIFICATION' ? 'teal' : 'gold'}
+          action={
+            me.kycStatus !== 'UNDER_ADMIN_VERIFICATION' && (
+              <Link href="/profile#kyc" className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-ink px-4 text-sm font-semibold text-white hover:bg-ink-800">
+                <Upload className="h-4 w-4" /> {me.kycStatus === 'RESUBMISSION_REQUIRED' ? 'Fix documents' : 'Upload documents'}
+              </Link>
+            )
+          }
+        >
+          {me.kycStatus === 'UNDER_ADMIN_VERIFICATION'
+            ? 'Your documents are with Rupeemap Admin. Your first payout can be released once they are approved.'
+            : `Upload your PAN, masked Aadhaar, cancelled cheque, photograph${me.role === 'DSA' ? ' and GST certificate (if GST registered)' : ''} so your first payout can be released.`}
         </Banner>
       )}
 
@@ -130,15 +132,9 @@ export default function DashboardPage() {
       </section>
 
       <section aria-label="Key numbers" className="space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="font-display text-base font-bold">{isAdmin ? 'Organisation overview' : me.role === 'DSA' ? 'You and your team' : 'Your cases'}</h2>
-          <div className="flex rounded-xl bg-white p-1 shadow-card ring-1 ring-ink-200/70" role="tablist" aria-label="Date range">
-            {RANGES.map((r) => (
-              <button key={r.key} role="tab" aria-selected={range === r.key} onClick={() => setRange(r.key)} className={cx('rounded-lg px-2.5 py-1.5 text-xs font-semibold', range === r.key ? 'bg-ink text-white' : 'text-ink-600 hover:bg-ink-50')}>
-                {r.label}
-              </button>
-            ))}
-          </div>
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <h2 className="pt-1.5 font-display text-base font-bold">{isAdmin ? 'Organisation overview' : me.role === 'DSA' ? 'You and your team' : 'Your cases'}</h2>
+          <DateRangeFilter value={range} onChange={setRange} />
         </div>
         {!s ? (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
