@@ -12,7 +12,18 @@ const SIGNATURES: { mime: string; ext: string[]; test: (b: Buffer) => boolean }[
   { mime: 'image/webp', ext: ['webp'], test: (b) => b.subarray(0, 4).toString('latin1') === 'RIFF' && b.subarray(8, 12).toString('latin1') === 'WEBP' },
 ];
 
+const MP4 = { mime: 'video/mp4', ext: ['mp4'], test: (b: Buffer) => b.subarray(4, 8).toString('latin1') === 'ftyp' };
+
 export const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
+/** Slider videos only. */
+export const MAX_VIDEO_BYTES = 25 * 1024 * 1024;
+
+export interface UploadRules {
+  /** Also accept MP4 video (dashboard slider media). */
+  video?: boolean;
+  /** Images only (no PDF), e.g. slider pictures. */
+  imagesOnly?: boolean;
+}
 
 export interface StoredFile {
   storageKey: string;
@@ -40,12 +51,15 @@ export class StorageService {
   }
 
   /** Validates type, size and name. Throws a user-facing error when the file is not acceptable. */
-  inspect(file: { buffer: Buffer; originalname: string; size: number }) {
+  inspect(file: { buffer: Buffer; originalname: string; size: number }, rules: UploadRules = {}) {
     if (!file?.buffer?.length) throw new AppError('VALIDATION_ERROR', 'Choose a file to upload');
-    if (file.size > MAX_UPLOAD_BYTES) throw new AppError('VALIDATION_ERROR', 'File is larger than 10 MB');
     const ext = (file.originalname.split('.').pop() ?? '').toLowerCase();
-    const sig = SIGNATURES.find((s) => s.test(file.buffer));
-    if (!sig || !sig.ext.includes(ext)) throw new AppError('VALIDATION_ERROR', 'Upload a PDF, JPG, PNG or WEBP file');
+    const allowed = [...SIGNATURES.filter((s) => !rules.imagesOnly || s.mime.startsWith('image/')), ...(rules.video ? [MP4] : [])];
+    const sig = allowed.find((s) => s.test(file.buffer));
+    const kinds = rules.imagesOnly ? 'JPG, PNG or WEBP' : 'PDF, JPG, PNG or WEBP';
+    if (!sig || !sig.ext.includes(ext)) throw new AppError('VALIDATION_ERROR', `Upload a ${kinds}${rules.video ? ' image or an MP4 video' : ' file'}`);
+    const max = sig.mime === 'video/mp4' ? MAX_VIDEO_BYTES : MAX_UPLOAD_BYTES;
+    if (file.size > max) throw new AppError('VALIDATION_ERROR', `File is larger than ${max / 1024 / 1024} MB`);
     const safeName = file.originalname
       .normalize('NFKC')
       .replace(/[^\w.\- ]+/g, '_')
@@ -55,8 +69,8 @@ export class StorageService {
     return { mime: sig.mime, name: safeName || `document.${sig.ext[0]}` };
   }
 
-  async save(file: { buffer: Buffer; originalname: string; size: number }): Promise<StoredFile> {
-    const { mime, name } = this.inspect(file);
+  async save(file: { buffer: Buffer; originalname: string; size: number }, rules: UploadRules = {}): Promise<StoredFile> {
+    const { mime, name } = this.inspect(file, rules);
     const storageKey = `${new Date().toISOString().slice(0, 7)}/${randomUUID()}`;
     const iv = randomBytes(12);
     const cipher = createCipheriv('aes-256-gcm', this.key(), iv);

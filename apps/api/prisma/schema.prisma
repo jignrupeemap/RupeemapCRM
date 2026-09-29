@@ -326,6 +326,7 @@ model Document {
   kyc          KycDocument?
   ticketMessage TicketMessage?
   notification Notification?
+  slider       Slider?
   accessLogs   DocumentAccessLog[]
 
   @@map("documents")
@@ -364,6 +365,7 @@ model Bank {
   bankers   BankerContact[]
   cases     LoanCase[]
   codes     BankCode[]
+  sliders   Slider[]
 
   @@map("banks")
 }
@@ -903,8 +905,14 @@ model Slider {
   endsAt      DateTime? @map("ends_at")
   active      Boolean   @default(true)
   sortOrder   Int       @default(0) @map("sort_order")
+  bankId      String?   @map("bank_id") @db.Uuid
+  documentId  String?   @unique @map("document_id") @db.Uuid
+  createdById String?   @map("created_by") @db.Uuid
   createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @default(now()) @updatedAt @map("updated_at")
   deletedAt   DateTime? @map("deleted_at")
+  document    Document? @relation(fields: [documentId], references: [id])
+  bank        Bank?     @relation(fields: [bankId], references: [id])
 
   @@index([active, sortOrder])
   @@map("sliders")

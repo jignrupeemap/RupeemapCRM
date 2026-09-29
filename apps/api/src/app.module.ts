@@ -27,6 +27,7 @@ import { BankersController } from './directory/bankers.controller';
 import { BankCodesController } from './directory/bank-codes.controller';
 import { TicketsController } from './tickets/tickets.controller';
 import { TicketsService } from './tickets/tickets.service';
+import { SlidersController } from './sliders/sliders.controller';
 import { RecoveryController } from './recovery/recovery.controller';
 import { RecoveryService } from './recovery/recovery.service';
 
@@ -49,6 +50,7 @@ import { RecoveryService } from './recovery/recovery.service';
     BankersController,
     BankCodesController,
     TicketsController,
+    SlidersController,
     RecoveryController,
   ],
   providers: [

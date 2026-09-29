@@ -122,12 +122,4 @@ export class MastersController {
     }
   }
 
-  @Get('sliders/active')
-  sliders() {
-    const now = new Date();
-    return this.prisma.slider.findMany({
-      where: { active: true, deletedAt: null, startsAt: { lte: now }, OR: [{ endsAt: null }, { endsAt: { gt: now } }] },
-      orderBy: { sortOrder: 'asc' },
-    });
-  }
 }
