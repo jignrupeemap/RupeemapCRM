@@ -480,6 +480,8 @@ model LoanCase {
   caseNo            String      @unique @map("case_no")
   customerId        String      @map("customer_id") @db.Uuid
   coApplicantName   String?     @map("co_applicant_name")
+  /// Customer profile (SALARIED, SENP, SEP, NRI, PENSIONER) for the document checklist.
+  customerProfile   String?     @map("customer_profile")
   loanType          String      @map("loan_type")
   appliedAmount     Decimal     @map("applied_amount") @db.Decimal(15, 2)
   bankId            String      @map("bank_id") @db.Uuid
@@ -585,6 +587,8 @@ model ChecklistTemplate {
   bankId      String?   @map("bank_id") @db.Uuid
   loanType    String?   @map("loan_type")
   projectId   String?   @map("project_id") @db.Uuid
+  /// Customer profile (SALARIED, SENP, SEP, NRI, PENSIONER); null = all profiles.
+  profile     String?
   product     String?
   active      Boolean   @default(true)
   createdById String    @map("created_by") @db.Uuid
@@ -594,6 +598,7 @@ model ChecklistTemplate {
   items       ChecklistTemplateItem[]
 
   @@index([bankId, loanType])
+  @@index([profile])
   @@map("checklist_templates")
 }
 

@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { createCaseSchema, formatINR } from '@rupeemap/shared';
+import { CUSTOMER_PROFILES, CUSTOMER_PROFILE_LABELS, CUSTOMER_PROFILE_SHORT, createCaseSchema, formatINR, type CustomerProfile } from '@rupeemap/shared';
 import { api, ApiError } from '@/lib/api';
 import { fmtDate } from '@/lib/format';
 import { useMe } from '@/lib/session';
@@ -20,6 +20,7 @@ interface Form {
   customerName: string;
   customerMobile: string;
   customerPan: string;
+  customerProfile: CustomerProfile | '';
   coApplicantName: string;
   loanType: string;
   appliedAmount: string;
@@ -31,7 +32,7 @@ interface Form {
   dsaId: string;
   teamPartnerId: string;
 }
-const EMPTY: Form = { customerName: '', customerMobile: '', customerPan: '', coApplicantName: '', loanType: '', appliedAmount: '', bankId: '', projectId: '', salesManagerId: '', salesManagerName: '', remarks: '', dsaId: '', teamPartnerId: '' };
+const EMPTY: Form = { customerName: '', customerMobile: '', customerPan: '', customerProfile: '', coApplicantName: '', loanType: '', appliedAmount: '', bankId: '', projectId: '', salesManagerId: '', salesManagerName: '', remarks: '', dsaId: '', teamPartnerId: '' };
 
 type Dup = { visible: boolean; id?: string; caseNo?: string; customerName?: string; bank: string; status: string; createdAt: string };
 
@@ -115,6 +116,7 @@ export default function NewCasePage() {
       teamPartnerId: f.teamPartnerId || undefined,
       salesManagerName: f.salesManagerName || undefined,
       coApplicantName: f.coApplicantName || undefined,
+      customerProfile: f.customerProfile || undefined,
       remarks: f.remarks || undefined,
     }),
     [f],
@@ -235,6 +237,28 @@ export default function NewCasePage() {
             <Field label="PAN" htmlFor="pan" hint="Optional" error={errors.customerPan}>
               <Input id="pan" className="uppercase" maxLength={10} value={f.customerPan} onChange={(e) => set('customerPan', e.target.value.toUpperCase())} aria-invalid={!!errors.customerPan} />
             </Field>
+            <div className="sm:col-span-2">
+              <Field label="Customer profile" htmlFor="cpf" hint="Decides the document checklist for this case. You can change it later.">
+                <div id="cpf" role="radiogroup" aria-label="Customer profile" className="flex flex-wrap gap-2">
+                  {CUSTOMER_PROFILES.map((x) => (
+                    <button
+                      key={x}
+                      type="button"
+                      role="radio"
+                      aria-checked={f.customerProfile === x}
+                      title={CUSTOMER_PROFILE_LABELS[x]}
+                      onClick={() => set('customerProfile', f.customerProfile === x ? '' : x)}
+                      className={cx(
+                        'rounded-xl px-3.5 py-2 text-sm font-semibold ring-1 ring-inset transition',
+                        f.customerProfile === x ? 'bg-teal-700 text-white ring-teal-700' : 'bg-white text-ink-700 ring-ink-200 hover:bg-ink-50',
+                      )}
+                    >
+                      {CUSTOMER_PROFILE_SHORT[x]}
+                    </button>
+                  ))}
+                </div>
+              </Field>
+            </div>
             <div className="sm:col-span-2">
               <Field label="Co-applicant name" htmlFor="co" hint="Optional">
                 <Input id="co" value={f.coApplicantName} onChange={(e) => set('coApplicantName', e.target.value)} />
@@ -377,6 +401,7 @@ export default function NewCasePage() {
                 ['Bank', bank?.name],
                 ['Project', project?.name ?? '—'],
                 ['Sales manager', sm?.name ?? (f.salesManagerName || '—')],
+                ['Customer profile', f.customerProfile ? CUSTOMER_PROFILE_SHORT[f.customerProfile] : '—'],
                 ['Co-applicant', f.coApplicantName || '—'],
               ].map(([k, v]) => (
                 <div key={k} className="flex justify-between gap-3 sm:block">

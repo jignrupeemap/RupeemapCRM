@@ -41,6 +41,18 @@ export const DEFAULT_LOAN_TYPES = [
   { code: 'OTHER', name: 'Other' },
 ] as const;
 
+/** Customer income profile: decides which documents the bank asks for. */
+export const CUSTOMER_PROFILES = ['SALARIED', 'SENP', 'SEP', 'NRI', 'PENSIONER'] as const;
+export type CustomerProfile = (typeof CUSTOMER_PROFILES)[number];
+export const CUSTOMER_PROFILE_LABELS: Record<CustomerProfile, string> = {
+  SALARIED: 'Salaried',
+  SENP: 'SENP (business / self-employed non-professional)',
+  SEP: 'SEP (doctor, CA, architect / self-employed professional)',
+  NRI: 'NRI',
+  PENSIONER: 'Pensioner',
+};
+export const CUSTOMER_PROFILE_SHORT: Record<CustomerProfile, string> = { SALARIED: 'Salaried', SENP: 'SENP', SEP: 'SEP', NRI: 'NRI', PENSIONER: 'Pensioner' };
+
 export const DISBURSEMENT_TYPES = ['PART', 'PART_TO_FULL', 'FULL'] as const;
 export type DisbursementType = (typeof DISBURSEMENT_TYPES)[number];
 export const DISBURSEMENT_TYPE_LABELS: Record<DisbursementType, string> = {

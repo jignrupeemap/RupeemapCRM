@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { MEASUREMENT_UNITS, PAYOUT_STATUSES, PROJECT_TYPES, UNIT_TYPES } from './enums';
+import { CUSTOMER_PROFILES, MEASUREMENT_UNITS, PAYOUT_STATUSES, PROJECT_TYPES, UNIT_TYPES } from './enums';
 
 const blankToUndefined = (v: unknown) => (v === '' || v === null ? undefined : v);
 
@@ -85,6 +85,7 @@ export const createCaseSchema = z.object({
     .optional()
     .or(z.literal('').transform(() => undefined)),
   coApplicantName: z.string().trim().max(120).optional(),
+  customerProfile: z.enum(CUSTOMER_PROFILES).optional().or(z.literal('').transform(() => undefined)),
   loanType: z.string().trim().min(1, 'Choose a loan type'),
   appliedAmount: z.coerce.number({ invalid_type_error: 'Enter the loan amount' }).positive('Enter the loan amount').max(1e12),
   bankId: z.string().uuid('Choose a bank'),
@@ -173,6 +174,8 @@ export const checklistTemplateSchema = z.object({
   bankId: optionalId,
   loanType: z.string().trim().max(40).optional().or(z.literal('').transform(() => undefined)).nullable(),
   projectId: optionalId,
+  /** Blank = every customer profile. */
+  profile: z.enum(CUSTOMER_PROFILES).optional().or(z.literal('').transform(() => undefined)).nullable(),
   product: z.string().trim().max(80).optional().or(z.literal('').transform(() => undefined)).nullable(),
   active: z.boolean().default(true),
   items: z
@@ -189,6 +192,8 @@ export const checklistTemplateSchema = z.object({
     .max(80),
 });
 export type ChecklistTemplateInput = z.infer<typeof checklistTemplateSchema>;
+
+export const caseProfileSchema = z.object({ customerProfile: z.enum(CUSTOMER_PROFILES).nullable() });
 
 export const CHECKLIST_ITEM_STATUSES = ['PENDING', 'RECEIVED', 'NOT_APPLICABLE'] as const;
 export type ChecklistItemStatus = (typeof CHECKLIST_ITEM_STATUSES)[number];

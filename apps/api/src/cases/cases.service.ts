@@ -147,6 +147,7 @@ export class CasesService {
           caseNo: formatCaseNo(year, last_seq),
           customerId: customer.id,
           coApplicantName: input.coApplicantName || null,
+          customerProfile: input.customerProfile ?? null,
           loanType: lt.code,
           appliedAmount: input.appliedAmount,
           bankId: bank.id,

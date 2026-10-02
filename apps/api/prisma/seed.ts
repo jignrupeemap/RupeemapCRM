@@ -5,6 +5,7 @@
 import { PrismaClient } from '@prisma/client';
 import { hash, Algorithm } from '@node-rs/argon2';
 import { DEFAULT_LOAN_TYPES, normalizeName } from '@rupeemap/shared';
+import { seedProfileChecklists } from './profile-checklists';
 
 const prisma = new PrismaClient();
 const DEMO_PASSWORD = 'Rupeemap@123';
@@ -136,8 +137,7 @@ async function main() {
         name: 'Home Loan: income and property',
         loanType: 'HOME_LOAN',
         items: [
-          ['Salary slips (last 3 months)', false, 'Salaried applicants'],
-          ['Form 16 / ITR (last 2 years)', true],
+          // Income documents come from the customer-profile checklists (Salaried, SENP, SEP, ...).
           ['Sale agreement / allotment letter', true],
           ['Approved building plan', false],
           ['Own contribution receipt', false],
@@ -172,6 +172,8 @@ async function main() {
       });
     }
   }
+
+  await seedProfileChecklists(prisma, admin.id);
 
   if (!(await prisma.bankCode.count())) {
     const codes = [

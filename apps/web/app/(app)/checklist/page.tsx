@@ -4,6 +4,7 @@ import { ArrowDown, ArrowUp, Copy, MessageCircle, Pencil, Plus, Trash2, X } from
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { api, ApiError } from '@/lib/api';
+import { CUSTOMER_PROFILES, CUSTOMER_PROFILE_LABELS, CUSTOMER_PROFILE_SHORT, type CustomerProfile } from '@rupeemap/shared';
 import { loanTypeName } from '@/lib/format';
 import { useCan } from '@/lib/session';
 import { PageHeader } from '@/components/shell';
@@ -18,6 +19,7 @@ interface Template {
   loanType: string | null;
   projectId: string | null;
   projectName: string | null;
+  profile: CustomerProfile | null;
   product: string | null;
   active: boolean;
   items: { id: string; name: string; required: boolean; hint: string | null; active: boolean }[];
@@ -26,8 +28,7 @@ interface Template {
 function useMasters() {
   const banks = useQuery({ queryKey: ['banks'], queryFn: () => api.get<{ id: string; name: string }[]>('/banks'), staleTime: 600_000 });
   const loanTypes = useQuery({ queryKey: ['loan-types'], queryFn: () => api.get<{ code: string; name: string }[]>('/loan-types'), staleTime: 600_000 });
-  const projects = useQuery({ queryKey: ['projects', 'options'], queryFn: () => api.page<{ id: string; name: string; city: string }>('/projects', { pageSize: 100 }), staleTime: 600_000 });
-  return { banks: banks.data ?? [], loanTypes: loanTypes.data ?? [], projects: projects.data?.data ?? [] };
+  return { banks: banks.data ?? [], loanTypes: loanTypes.data ?? [] };
 }
 
 export default function ChecklistPage() {
@@ -35,7 +36,7 @@ export default function ChecklistPage() {
   const manage = can('CHECKLIST_MANAGE');
   return (
     <div>
-      <PageHeader title="Checklist" sub="Documents each bank needs for each loan type. Pick a bank and loan type to see the list and share it with your customer." />
+      <PageHeader title="Checklist" sub="Documents each bank needs, by loan type and customer profile. Pick them to see the list and share it with your customer." />
       {manage ? (
         <Tabs defaultValue="finder">
           <TabList>
@@ -43,7 +44,7 @@ export default function ChecklistPage() {
             <Tab value="manage">Manage checklists</Tab>
           </TabList>
           <TabPanel value="finder" className="pt-4">
-            <Finder />
+            <Finder manage />
           </TabPanel>
           <TabPanel value="manage" className="pt-4">
             <Manager />
@@ -56,18 +57,21 @@ export default function ChecklistPage() {
   );
 }
 
-function Finder() {
-  const { banks, loanTypes, projects } = useMasters();
+function Finder({ manage = false }: { manage?: boolean }) {
+  const { banks, loanTypes } = useMasters();
+  const [editing, setEditing] = useState<Template | null>(null);
+  const templates = useQuery({ queryKey: ['checklists', 'manage'], queryFn: () => api.get<Template[]>('/checklists', { includeInactive: '1' }), enabled: manage });
   const [bankId, setBankId] = useState('');
   const [loanType, setLoanType] = useState('HOME_LOAN');
-  const [projectId, setProjectId] = useState('');
+  const [profile, setProfile] = useState<CustomerProfile | ''>('SALARIED');
   const q = useQuery({
-    queryKey: ['checklist', 'resolve', bankId, loanType, projectId],
-    queryFn: () => api.get<ResolvedItem[]>('/checklists/resolve', { bankId, loanType, projectId }),
+    queryKey: ['checklist', 'resolve', bankId, loanType, profile],
+    queryFn: () => api.get<ResolvedItem[]>('/checklists/resolve', { bankId, loanType, profile }),
     enabled: !!bankId && !!loanType,
   });
   const items = q.data ?? [];
   const msg = pendingDocsMessage('Customer', items);
+  const sources = [...new Map(items.map((i) => [i.templateId, i.source])).entries()];
   return (
     <div className="grid gap-5 lg:grid-cols-3">
       <Card className="h-fit space-y-4 p-5">
@@ -90,16 +94,27 @@ function Finder() {
             ))}
           </Select>
         </Field>
-        <Field label="Project (optional)" htmlFor="cp">
-          <Select id="cp" value={projectId} onChange={(e) => setProjectId(e.target.value)}>
-            <option value="">Any / resale</option>
-            {projects.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}, {p.city}
-              </option>
+        <Field label="Customer profile" required htmlFor="cp" hint="Decides the income documents the bank asks for">
+          <div id="cp" role="radiogroup" aria-label="Customer profile" className="grid grid-cols-2 gap-2">
+            {CUSTOMER_PROFILES.map((x) => (
+              <button
+                key={x}
+                type="button"
+                role="radio"
+                aria-checked={profile === x}
+                title={CUSTOMER_PROFILE_LABELS[x]}
+                onClick={() => setProfile(x)}
+                className={cx(
+                  'rounded-xl px-3 py-2.5 text-left text-sm font-semibold ring-1 ring-inset transition',
+                  profile === x ? 'bg-teal-700 text-white ring-teal-700' : 'bg-white text-ink-700 ring-ink-200 hover:bg-ink-50',
+                )}
+              >
+                {CUSTOMER_PROFILE_SHORT[x]}
+              </button>
             ))}
-          </Select>
+          </div>
         </Field>
+        {profile && <p className="text-xs text-ink-500">{CUSTOMER_PROFILE_LABELS[profile]}</p>}
       </Card>
       <Card className="overflow-hidden lg:col-span-2">
         {!bankId ? (
@@ -117,9 +132,13 @@ function Finder() {
         ) : (
           <>
             <div className="flex flex-col gap-2 border-b border-ink-100 p-4 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-sm text-ink-600">
-                <span className="font-semibold text-ink">{items.filter((i) => i.required).length} required</span>, {items.filter((i) => !i.required).length} optional
-              </p>
+              <div>
+                <p className="text-sm text-ink-600">
+                  <span className="font-semibold text-ink">{items.filter((i) => i.required).length} required</span>, {items.filter((i) => !i.required).length} optional
+                  {profile && <> · {CUSTOMER_PROFILE_SHORT[profile]}</>}
+                </p>
+                <p className="mt-0.5 text-xs text-ink-500">From: {sources.map(([, name]) => name).join(' · ')}</p>
+              </div>
               <div className="flex gap-2">
                 <a
                   href={`https://wa.me/?text=${encodeURIComponent(msg)}`}
@@ -146,9 +165,23 @@ function Finder() {
                 </li>
               ))}
             </ol>
+            {manage && (
+              <div className="flex flex-wrap items-center gap-2 border-t border-ink-100 bg-ink-50/60 px-4 py-3">
+                <span className="text-xs font-semibold text-ink-600">Edit, add or remove documents:</span>
+                {sources.map(([id, name]) => {
+                  const t = templates.data?.find((x) => x.id === id);
+                  return (
+                    <Button key={id} size="sm" variant="secondary" icon={<Pencil className="h-3.5 w-3.5" />} disabled={!t} onClick={() => t && setEditing(t)}>
+                      {name}
+                    </Button>
+                  );
+                })}
+              </div>
+            )}
           </>
         )}
       </Card>
+      {editing && <TemplateModal template={editing} onClose={() => setEditing(null)} />}
     </div>
   );
 }
@@ -183,7 +216,8 @@ function Manager() {
                   <div className="mt-1.5 flex flex-wrap gap-1.5">
                     <Badge tone={t.bankName ? 'dark' : 'neutral'}>{t.bankName ?? 'All banks'}</Badge>
                     <Badge tone={t.loanType ? 'teal' : 'neutral'}>{t.loanType ? loanTypeName(t.loanType) : 'All loan types'}</Badge>
-                    {t.projectName && <Badge tone="gold">{t.projectName}</Badge>}
+                    <Badge tone={t.profile ? 'gold' : 'neutral'}>{t.profile ? CUSTOMER_PROFILE_SHORT[t.profile] : 'All profiles'}</Badge>
+                    {t.projectName && <Badge>{t.projectName}</Badge>}
                     {!t.active && <Badge tone="red">Inactive</Badge>}
                   </div>
                 </div>
@@ -213,11 +247,13 @@ type DraftItem = { id?: string; name: string; required: boolean; hint: string };
 
 function TemplateModal({ template, onClose }: { template: Template | null; onClose: () => void }) {
   const qc = useQueryClient();
-  const { banks, loanTypes, projects } = useMasters();
+  const { banks, loanTypes } = useMasters();
   const [v, setV] = useState({
     name: template?.name ?? '',
     bankId: template?.bankId ?? '',
     loanType: template?.loanType ?? '',
+    profile: (template?.profile ?? '') as CustomerProfile | '',
+    // Kept as-is for older checklists that were tied to a project; no longer chosen here.
     projectId: template?.projectId ?? '',
     active: template?.active ?? true,
   });
@@ -257,7 +293,7 @@ function TemplateModal({ template, onClose }: { template: Template | null; onClo
       wide
       onOpenChange={(o) => !o && onClose()}
       title={template ? 'Edit checklist' : 'New checklist'}
-      description="Leave bank, loan type or project blank to apply it to all. Documents from matching checklists are combined on each case."
+      description="Leave bank, loan type or profile blank to apply it to all. Documents from matching checklists are combined on each case."
       footer={
         <>
           {template &&
@@ -282,7 +318,7 @@ function TemplateModal({ template, onClose }: { template: Template | null; onClo
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="sm:col-span-2">
           <Field label="Checklist name" required htmlFor="tn" error={errors.name}>
-            <Input id="tn" value={v.name} onChange={(e) => setV({ ...v, name: e.target.value })} placeholder="e.g. HDFC Home Loan: salaried" />
+            <Input id="tn" value={v.name} onChange={(e) => setV({ ...v, name: e.target.value })} placeholder="e.g. HDFC Home Loan: SENP" />
           </Field>
         </div>
         <Field label="Bank" htmlFor="tb">
@@ -305,12 +341,12 @@ function TemplateModal({ template, onClose }: { template: Template | null; onClo
             ))}
           </Select>
         </Field>
-        <Field label="Project" htmlFor="tp">
-          <Select id="tp" value={v.projectId} onChange={(e) => setV({ ...v, projectId: e.target.value })}>
-            <option value="">All projects</option>
-            {projects.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
+        <Field label="Customer profile" htmlFor="tp">
+          <Select id="tp" value={v.profile} onChange={(e) => setV({ ...v, profile: e.target.value as CustomerProfile | '' })}>
+            <option value="">All profiles</option>
+            {CUSTOMER_PROFILES.map((x) => (
+              <option key={x} value={x}>
+                {CUSTOMER_PROFILE_LABELS[x]}
               </option>
             ))}
           </Select>

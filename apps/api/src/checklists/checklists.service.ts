@@ -13,6 +13,7 @@ export interface ResolvedItem {
   required: boolean;
   hint: string | null;
   source: string;
+  templateId: string;
 }
 
 const TEMPLATE_INCLUDE = {
@@ -21,7 +22,8 @@ const TEMPLATE_INCLUDE = {
 
 /**
  * Configurable document checklists (PART 40). A template applies to a case
- * when each of its bank / loan type / project is blank or matches the case.
+ * when each of its bank / loan type / customer profile / project is blank or
+ * matches the case (e.g. "Salaried" documents only for salaried customers).
  */
 @Injectable()
 export class ChecklistsService {
@@ -31,17 +33,20 @@ export class ChecklistsService {
     private readonly scope: ScopeService,
   ) {}
 
-  async list(user: AuthUser, q: { includeInactive?: string; bankId?: string; loanType?: string }) {
+  async list(user: AuthUser, q: { includeInactive?: string; bankId?: string; loanType?: string; profile?: string }) {
     const manage = can(user, 'CHECKLIST_MANAGE');
     const templates = await this.prisma.checklistTemplate.findMany({
       where: {
         deletedAt: null,
         ...(manage && q.includeInactive === '1' ? {} : { active: true }),
         ...(q.bankId ? { OR: [{ bankId: q.bankId }, { bankId: null }] } : {}),
-        ...(q.loanType ? { AND: [{ OR: [{ loanType: q.loanType }, { loanType: null }] }] } : {}),
+        AND: [
+          q.loanType ? { OR: [{ loanType: q.loanType }, { loanType: null }] } : {},
+          q.profile ? { OR: [{ profile: q.profile }, { profile: null }] } : {},
+        ],
       },
       include: manage ? { items: { orderBy: { sortOrder: 'asc' } } } : TEMPLATE_INCLUDE,
-      orderBy: [{ bankId: 'asc' }, { loanType: 'asc' }, { name: 'asc' }],
+      orderBy: [{ profile: 'asc' }, { bankId: 'asc' }, { loanType: 'asc' }, { name: 'asc' }],
       take: 200,
     });
     const [banks, projects] = await Promise.all([
@@ -55,8 +60,8 @@ export class ChecklistsService {
     }));
   }
 
-  /** The combined document list for a bank + loan type (+ project). Same document name appears once. */
-  async resolve(filter: { bankId: string; loanType: string; projectId?: string | null }): Promise<ResolvedItem[]> {
+  /** The combined document list for a bank + loan type (+ customer profile, project). Same document name appears once. */
+  async resolve(filter: { bankId: string; loanType: string; profile?: string | null; projectId?: string | null }): Promise<ResolvedItem[]> {
     const templates = await this.prisma.checklistTemplate.findMany({
       where: {
         deletedAt: null,
@@ -65,13 +70,15 @@ export class ChecklistsService {
           { OR: [{ bankId: null }, { bankId: filter.bankId }] },
           { OR: [{ loanType: null }, { loanType: filter.loanType }] },
           { OR: [{ projectId: null }, ...(filter.projectId ? [{ projectId: filter.projectId }] : [])] },
+          { OR: [{ profile: null }, ...(filter.profile ? [{ profile: filter.profile }] : [])] },
         ],
       },
       include: TEMPLATE_INCLUDE,
       // General templates first, then more specific ones.
       orderBy: [{ createdAt: 'asc' }],
     });
-    const specificity = (t: { bankId: string | null; loanType: string | null; projectId: string | null }) => (t.bankId ? 1 : 0) + (t.loanType ? 1 : 0) + (t.projectId ? 1 : 0);
+    const specificity = (t: { bankId: string | null; loanType: string | null; projectId: string | null; profile: string | null }) =>
+      (t.bankId ? 1 : 0) + (t.loanType ? 1 : 0) + (t.projectId ? 1 : 0) + (t.profile ? 1 : 0);
     templates.sort((a, b) => specificity(a) - specificity(b));
     const byName = new Map<string, ResolvedItem>();
     for (const t of templates) {
@@ -82,7 +89,7 @@ export class ChecklistsService {
           prev.required = prev.required || i.required;
           continue;
         }
-        byName.set(key, { itemId: i.id, name: i.name, required: i.required, hint: i.hint, source: t.name });
+        byName.set(key, { itemId: i.id, name: i.name, required: i.required, hint: i.hint, source: t.name, templateId: t.id });
       }
     }
     return [...byName.values()];
@@ -97,6 +104,7 @@ export class ChecklistsService {
           bankId: input.bankId ?? null,
           loanType: input.loanType ?? null,
           projectId: input.projectId ?? null,
+          profile: input.profile ?? null,
           product: input.product ?? null,
           active: input.active,
           createdById: user.id,
@@ -117,7 +125,7 @@ export class ChecklistsService {
     return this.prisma.$transaction(async (tx) => {
       await tx.checklistTemplate.update({
         where: { id },
-        data: { name: input.name, bankId: input.bankId ?? null, loanType: input.loanType ?? null, projectId: input.projectId ?? null, product: input.product ?? null, active: input.active },
+        data: { name: input.name, bankId: input.bankId ?? null, loanType: input.loanType ?? null, projectId: input.projectId ?? null, profile: input.profile ?? null, product: input.product ?? null, active: input.active },
       });
       const keep = new Set<string>();
       for (const [n, i] of input.items.entries()) {
@@ -164,7 +172,7 @@ export class ChecklistsService {
   /** The case's checklist with progress. */
   async forCase(user: AuthUser, caseId: string) {
     const c = await this.scopedCase(user, caseId);
-    const items = await this.resolve({ bankId: c.bankId, loanType: c.loanType, projectId: c.projectId });
+    const items = await this.resolve({ bankId: c.bankId, loanType: c.loanType, profile: c.customerProfile, projectId: c.projectId });
     const progress = await this.prisma.caseChecklistItem.findMany({ where: { caseId } });
     const rows = items.map((i) => {
       const p = progress.find((x) => x.templateItemId === i.itemId);
@@ -180,6 +188,7 @@ export class ChecklistsService {
         required: required.length,
         requiredDone: required.filter(done).length,
       },
+      customerProfile: c.customerProfile,
       canUpdate: can(user, 'CASE_UPDATE') && !['REJECT', 'WITHDRAW'].includes(c.status),
     };
   }
@@ -188,7 +197,7 @@ export class ChecklistsService {
     if (!can(user, 'CASE_UPDATE')) throw forbidden();
     const c = await this.scopedCase(user, caseId);
     if (c.status === 'REJECT' || c.status === 'WITHDRAW') throw new AppError('INVALID_TRANSITION', 'This case is closed. Reopen it to update the checklist.');
-    const applicable = await this.resolve({ bankId: c.bankId, loanType: c.loanType, projectId: c.projectId });
+    const applicable = await this.resolve({ bankId: c.bankId, loanType: c.loanType, profile: c.customerProfile, projectId: c.projectId });
     if (!applicable.some((i) => i.itemId === itemId)) throw notFound('Checklist item');
     return this.prisma.$transaction(async (tx) => {
       const before = await tx.caseChecklistItem.findUnique({ where: { caseId_templateItemId: { caseId, templateItemId: itemId } } });
@@ -199,6 +208,17 @@ export class ChecklistsService {
       });
       await this.audit.log(tx, user, { action: 'CASE_CHECKLIST_UPDATED', entity: 'case', entityId: caseId, before: before && { item: itemId, status: before.status }, after: { item: itemId, status: row.status, remarks: row.remarks } }, meta);
       return row;
+    });
+  }
+
+  /** Set or change the customer's profile on a case; the checklist follows it. Progress already marked is kept. */
+  async setCaseProfile(user: AuthUser, caseId: string, profile: string | null, meta: RequestMeta) {
+    if (!can(user, 'CASE_UPDATE')) throw forbidden();
+    const c = await this.scopedCase(user, caseId);
+    return this.prisma.$transaction(async (tx) => {
+      await tx.loanCase.update({ where: { id: caseId }, data: { customerProfile: profile } });
+      await this.audit.log(tx, user, { action: 'CASE_PROFILE_CHANGED', entity: 'case', entityId: caseId, before: { customerProfile: c.customerProfile }, after: { customerProfile: profile } }, meta);
+      return { customerProfile: profile };
     });
   }
 }

@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, CircleSlash, Copy, MessageCircle } from 'lucide-react';
 import { toast } from 'sonner';
-import type { ChecklistItemStatus } from '@rupeemap/shared';
+import { CUSTOMER_PROFILES, CUSTOMER_PROFILE_LABELS, CUSTOMER_PROFILE_SHORT, type ChecklistItemStatus, type CustomerProfile } from '@rupeemap/shared';
 import { api, ApiError } from '@/lib/api';
 import { timeAgo } from '@/lib/format';
 import { Badge, Card, cx, EmptyState, ErrorState, Skeleton } from './ui';
@@ -14,12 +14,56 @@ export interface ResolvedItem {
   required: boolean;
   hint: string | null;
   source: string;
+  templateId: string;
 }
 
 interface CaseChecklist {
   items: (ResolvedItem & { status: ChecklistItemStatus; remarks: string | null; updatedByName: string | null; updatedAt: string | null })[];
   progress: { total: number; done: number; required: number; requiredDone: number };
+  customerProfile: CustomerProfile | null;
   canUpdate: boolean;
+}
+
+/** The customer's profile on a case; changing it changes which income documents are asked for. */
+function ProfilePicker({ caseId, value, canUpdate }: { caseId: string; value: CustomerProfile | null; canUpdate: boolean }) {
+  const qc = useQueryClient();
+  const m = useMutation({
+    mutationFn: (customerProfile: CustomerProfile | null) => api.put(`/cases/${caseId}/profile`, { customerProfile }),
+    onSuccess: () => {
+      toast.success('Customer profile saved. Checklist updated.');
+      qc.invalidateQueries({ queryKey: ['case', caseId] });
+    },
+    onError: (e: ApiError) => toast.error(e.message),
+  });
+  return (
+    <Card className="p-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-sm font-semibold text-ink">Customer profile</p>
+          <p className="text-xs text-ink-500">{value ? CUSTOMER_PROFILE_LABELS[value] : 'Not set: only general documents are listed. Choose one to add the income documents.'}</p>
+        </div>
+        <div role="radiogroup" aria-label="Customer profile" className="flex flex-wrap gap-1.5">
+          {CUSTOMER_PROFILES.map((x) => (
+            <button
+              key={x}
+              type="button"
+              role="radio"
+              aria-checked={value === x}
+              disabled={!canUpdate || m.isPending}
+              title={CUSTOMER_PROFILE_LABELS[x]}
+              onClick={() => value !== x && m.mutate(x)}
+              className={cx(
+                'rounded-lg px-3 py-1.5 text-sm font-semibold ring-1 ring-inset transition disabled:cursor-not-allowed',
+                value === x ? 'bg-teal-700 text-white ring-teal-700' : 'bg-white text-ink-700 ring-ink-200 hover:bg-ink-50 disabled:opacity-60',
+              )}
+            >
+              {CUSTOMER_PROFILE_SHORT[x]}
+            </button>
+          ))}
+        </div>
+      </div>
+    </Card>
+  );
 }
 
 const OPTIONS: { v: ChecklistItemStatus; label: string; icon?: typeof Check }[] = [
@@ -67,16 +111,22 @@ export function CaseChecklistTab({ caseId, customerName, customerMobile }: { cas
       </Card>
     );
   const d = q.data!;
+  const picker = <ProfilePicker caseId={caseId} value={d.customerProfile} canUpdate={d.canUpdate} />;
   if (!d.items.length)
     return (
-      <Card>
-        <EmptyState title="No checklist for this bank and loan type" body="Rupeemap can add one under Checklist. It will then appear on this case automatically." />
-      </Card>
+      <div className="space-y-4">
+        {picker}
+        <Card>
+          <EmptyState title="No checklist for this bank, loan type and profile" body="Rupeemap can add one under Checklist. It will then appear on this case automatically." />
+        </Card>
+      </div>
     );
   const pending = d.items.filter((i) => i.status === 'PENDING');
   const msg = pendingDocsMessage(customerName, pending);
 
   return (
+    <div className="space-y-4">
+    {picker}
     <div className="grid gap-5 lg:grid-cols-3">
       <Card className="space-y-4 p-5 lg:order-2">
         <ProgressBar done={d.progress.requiredDone} total={d.progress.required} label="Required documents" />
@@ -144,6 +194,7 @@ export function CaseChecklistTab({ caseId, customerName, customerMobile }: { cas
           ))}
         </ul>
       </Card>
+    </div>
     </div>
   );
 }

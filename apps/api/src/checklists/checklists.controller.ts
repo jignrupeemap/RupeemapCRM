@@ -1,11 +1,16 @@
 import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Put, Query } from '@nestjs/common';
 import { z } from 'zod';
-import { caseChecklistUpdateSchema, checklistTemplateSchema } from '@rupeemap/shared';
+import { CUSTOMER_PROFILES, caseChecklistUpdateSchema, caseProfileSchema, checklistTemplateSchema } from '@rupeemap/shared';
 import { ChecklistsService } from './checklists.service';
 import { parse } from '../common/validate';
 import { CurrentUser, Meta, RequirePermission, type AuthUser, type RequestMeta } from '../common/auth-context';
 
-const resolveSchema = z.object({ bankId: z.string().uuid('Choose a bank'), loanType: z.string().min(1, 'Choose a loan type').max(40), projectId: z.string().uuid().optional() });
+const resolveSchema = z.object({
+  bankId: z.string().uuid('Choose a bank'),
+  loanType: z.string().min(1, 'Choose a loan type').max(40),
+  profile: z.preprocess((v) => (v === '' ? undefined : v), z.enum(CUSTOMER_PROFILES).optional()),
+  projectId: z.preprocess((v) => (v === '' ? undefined : v), z.string().uuid().optional()),
+});
 
 @Controller()
 export class ChecklistsController {
@@ -45,6 +50,11 @@ export class ChecklistsController {
   @Get('cases/:id/checklist')
   forCase(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string) {
     return this.checklists.forCase(user, id);
+  }
+
+  @Put('cases/:id/profile')
+  setProfile(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string, @Body() body: unknown, @Meta() meta: RequestMeta) {
+    return this.checklists.setCaseProfile(user, id, parse(caseProfileSchema, body).customerProfile, meta);
   }
 
   @Put('cases/:id/checklist/:itemId')

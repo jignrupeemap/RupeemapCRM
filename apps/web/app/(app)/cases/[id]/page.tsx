@@ -15,6 +15,8 @@ import {
   type MeasurementUnit,
   type PayoutStatus,
   type Role,
+  CUSTOMER_PROFILE_LABELS,
+  type CustomerProfile,
 } from '@rupeemap/shared';
 import { api, ApiError } from '@/lib/api';
 import { fmtDate, fmtDateTime, formatINR, formatINRCompact, loanTypeName } from '@/lib/format';
@@ -37,6 +39,7 @@ interface CaseDetail {
   loanType: string;
   appliedAmount: string;
   coApplicantName: string | null;
+  customerProfile: CustomerProfile | null;
   sanctionAmount: string | null;
   sanctionDate: string | null;
   disbursedTotal: string | null;
@@ -197,7 +200,7 @@ export default function CaseDetailPage() {
 
           <TabPanel value="customer">
             <Card className="p-5">
-              <DetailGrid items={[['Customer name', c.customer.name], ['Mobile', c.customer.mobile ? `+91 ${c.customer.mobile}` : '—'], ['PAN', c.customer.pan ?? '—'], ['Co-applicant', c.coApplicantName ?? '—']]} />
+              <DetailGrid items={[['Customer name', c.customer.name], ['Mobile', c.customer.mobile ? `+91 ${c.customer.mobile}` : '—'], ['PAN', c.customer.pan ?? '—'], ['Co-applicant', c.coApplicantName ?? '—'], ['Customer profile', c.customerProfile ? CUSTOMER_PROFILE_LABELS[c.customerProfile] : '—']]} />
             </Card>
           </TabPanel>
 
