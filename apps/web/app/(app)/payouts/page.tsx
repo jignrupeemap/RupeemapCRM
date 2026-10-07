@@ -1,6 +1,6 @@
 'use client';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Pencil, X } from 'lucide-react';
+import { Paperclip, Pencil, X } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useRef, useState } from 'react';
@@ -14,6 +14,7 @@ import { DateRangeFilter, DEFAULT_RANGE, rangeToParams, type RangeValue } from '
 import { PayoutAdjustModal } from '@/components/payout-adjust';
 import { PayoutSlabCard } from '@/components/payout-slab';
 import { RecordRecoveryModal } from '@/components/recovery';
+import { BankerMailPicker, PayoutAttachmentsModal, uploadBankerMail } from '@/components/payout-attachments';
 import { Badge, Button, Card, cx, EmptyState, ErrorState, Field, Input, Kpi, Modal, Pagination, PayoutChip, Select, Skeleton, Textarea } from '@/components/ui';
 
 interface PayoutRow {
@@ -28,6 +29,8 @@ interface PayoutRow {
   beneficiary: { id: string; name: string } | null;
   kycStatus: string | null;
   receivedFromBank: boolean;
+  /** Staff only: banker confirmation attachments kept on this payout. */
+  _count?: { attachments: number };
   bankReceivedAmount: string | null;
   paymentRef: string | null;
   paidOn: string | null;
@@ -67,6 +70,8 @@ function Payouts() {
   const [adjusting, setAdjusting] = useState<PayoutRow | null>(null);
   const [receipt, setReceipt] = useState<PayoutRow | null>(null);
   const [recovering, setRecovering] = useState<PayoutRow | null>(null);
+  const [mails, setMails] = useState<PayoutRow | null>(null);
+  const isStaff = me?.role === 'ADMIN' || me?.role === 'EXECUTIVE';
   const dates = rangeToParams(range);
   const q = useQuery({
     queryKey: ['payouts', status, page, beneficiaryId, dsaId, bankReceived, dates],
@@ -168,6 +173,18 @@ function Payouts() {
                           {p.loanCase.customer.name}
                         </Link>
                         <PayoutChip status={p.status} />
+                        {isStaff && (p._count?.attachments || p.status === 'CONFIRMED' || p.status === 'PAID') ? (
+                          <button
+                            onClick={() => setMails(p)}
+                            className={cx(
+                              'mt-1 flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-semibold ring-1 ring-inset',
+                              p._count?.attachments ? 'text-teal-800 ring-teal-200 hover:bg-teal-50' : 'text-amber-800 ring-amber-200 hover:bg-amber-50',
+                            )}
+                            title="Banker confirmation mails"
+                          >
+                            <Paperclip className="h-3 w-3" /> {p._count?.attachments ? `Banker mail (${p._count.attachments})` : 'Add banker mail'}
+                          </button>
+                        ) : null}
                         {p.receivedFromBank && <Badge tone="teal">Received from bank</Badge>}
                         {p.kycStatus !== 'APPROVED' && p.status !== 'PAID' && (manage ? <Link href={`/kyc/${p.beneficiaryId}`} className="hover:underline"><Badge tone="gold">KYC pending</Badge></Link> : <Badge tone="gold">KYC pending</Badge>)}
                       </div>
@@ -217,6 +234,14 @@ function Payouts() {
       {editing && <StatusModal {...editing} onClose={() => setEditing(null)} />}
       {adjusting && <PayoutAdjustModal p={{ ...adjusting, caseNo: adjusting.loanCase.caseNo }} onClose={() => setAdjusting(null)} />}
       {receipt && <ReceiptModal p={receipt} onClose={() => setReceipt(null)} />}
+      {mails && (
+        <PayoutAttachmentsModal
+          payoutId={mails.id}
+          title={`${mails.beneficiary?.name ?? ''} · ${mails.loanCase.caseNo} · ${mails.loanCase.customer.name} · ${formatINR(mails.amount)}`}
+          canAdd={can('PAYOUT_UPDATE')}
+          onClose={() => setMails(null)}
+        />
+      )}
       {recovering && <RecordRecoveryModal payout={{ ...recovering, caseNo: recovering.loanCase.caseNo }} onClose={() => setRecovering(null)} />}
     </div>
   );
@@ -228,11 +253,21 @@ function StatusModal({ p, to, onClose }: { p: PayoutRow; to: PayoutStatus; onClo
   const [reason, setReason] = useState('');
   const [paymentRef, setRef] = useState('');
   const [paidOn, setPaidOn] = useState(new Date().toISOString().slice(0, 10));
+  const [mail, setMail] = useState<File | null>(null);
   const kycBlocked = to === 'PAID' && p.kycStatus !== 'APPROVED';
   const m = useMutation({
-    mutationFn: () => api.patch(`/payouts/${p.id}/status`, { status: to, version: p.version, reason, paymentRef: paymentRef || undefined, paidOn: to === 'PAID' ? paidOn : undefined }, { 'Idempotency-Key': idem.current }),
+    mutationFn: async () => {
+      await api.patch(`/payouts/${p.id}/status`, { status: to, version: p.version, reason, paymentRef: paymentRef || undefined, paidOn: to === 'PAID' ? paidOn : undefined }, { 'Idempotency-Key': idem.current });
+      if (mail) {
+        try {
+          await uploadBankerMail(p.id, mail, `Attached when marking ${PAYOUT_STATUS_LABELS[to]}`);
+        } catch (e) {
+          toast.error(`Payout marked ${PAYOUT_STATUS_LABELS[to]}, but the attachment did not upload: ${(e as ApiError).message}. Use "Add banker mail" on the payout to try again.`);
+        }
+      }
+    },
     onSuccess: () => {
-      toast.success(`Payout marked ${PAYOUT_STATUS_LABELS[to]}`);
+      toast.success(`Payout marked ${PAYOUT_STATUS_LABELS[to]}${mail ? ' with banker confirmation attached' : ''}`);
       qc.invalidateQueries({ queryKey: ['payouts'] });
       qc.invalidateQueries({ queryKey: ['dashboard'] });
       onClose();
@@ -268,6 +303,7 @@ function StatusModal({ p, to, onClose }: { p: PayoutRow; to: PayoutStatus; onClo
             </Field>
           </div>
         )}
+        {to === 'CONFIRMED' && <BankerMailPicker file={mail} onFile={setMail} />}
         <Field label="Reason" required htmlFor="rsn" hint="Recorded in payout history and the audit log">
           <Textarea id="rsn" value={reason} onChange={(e) => setReason(e.target.value)} placeholder={to === 'HOLD' ? 'For example: OTC pending with bank' : 'For example: Matched with bank MIS for September'} />
         </Field>

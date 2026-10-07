@@ -1,6 +1,6 @@
 'use client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Check, CircleDot, Clock3, FileText, Lock, PencilLine } from 'lucide-react';
+import { Check, CircleDot, Clock3, FileText, Lock, Paperclip, PencilLine } from 'lucide-react';
 import { useParams } from 'next/navigation';
 import { useState } from 'react';
 import { toast } from 'sonner';
@@ -27,6 +27,7 @@ import { CaseChecklistTab } from '@/components/checklist';
 import { PayoutAdjustModal } from '@/components/payout-adjust';
 import { CaseInsuranceTab } from '@/components/insurance';
 import { RecordRecoveryModal, RecoveryList } from '@/components/recovery';
+import { PayoutAttachmentsModal } from '@/components/payout-attachments';
 import { TicketsView } from '@/components/tickets';
 import { Badge, Banner, Button, Card, cx, DetailGrid, EmptyState, ErrorState, Field, Input, Modal, PayoutChip, Select, Skeleton, StatusChip, Tab, TabList, TabPanel, Tabs, Textarea } from '@/components/ui';
 
@@ -538,6 +539,9 @@ function CaseRecovery({ c, canRecord }: { c: CaseDetail; canRecord: boolean }) {
 
 function PayoutTab({ c }: { c: CaseDetail }) {
   const [adjusting, setAdjusting] = useState<CaseDetail['payouts'][number] | null>(null);
+  const [mails, setMails] = useState<CaseDetail['payouts'][number] | null>(null);
+  const { data: me } = useMe();
+  const isStaff = me?.role === 'ADMIN' || me?.role === 'EXECUTIVE';
   if (!c.payouts.length)
     return (
       <Card>
@@ -561,6 +565,11 @@ function PayoutTab({ c }: { c: CaseDetail }) {
             <div className="flex flex-col items-end gap-1.5">
               <PayoutChip status={p.status} />
               {p.receivedFromBank && <Badge tone="teal">Received from bank</Badge>}
+              {isStaff && (p.status === 'CONFIRMED' || p.status === 'PAID') && (
+                <button onClick={() => setMails(p)} className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-semibold text-teal-800 ring-1 ring-inset ring-teal-200 hover:bg-teal-50">
+                  <Paperclip className="h-3 w-3" /> Banker mail
+                </button>
+              )}
               {p.canAdjust && (
                 <Button size="sm" variant="secondary" icon={<PencilLine className="h-3.5 w-3.5" />} onClick={() => setAdjusting(p)}>
                   Change % / amount
@@ -591,6 +600,14 @@ function PayoutTab({ c }: { c: CaseDetail }) {
         </Card>
       ))}
       <p className="text-xs text-ink-500">Payout status can only be changed by Rupeemap Admin or authorised executives, from the Payout screen.</p>
+      {mails && (
+        <PayoutAttachmentsModal
+          payoutId={mails.id}
+          title={`${mails.beneficiary?.name ?? ''} · ${c.caseNo} · ${formatINR(mails.amount)}`}
+          canAdd={!!me?.permissions.includes('PAYOUT_UPDATE')}
+          onClose={() => setMails(null)}
+        />
+      )}
       {adjusting && <PayoutAdjustModal p={{ ...adjusting, caseNo: c.caseNo }} onClose={() => setAdjusting(null)} />}
     </div>
   );

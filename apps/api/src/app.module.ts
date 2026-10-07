@@ -11,6 +11,7 @@ import { CasesController } from './cases/cases.controller';
 import { CasesService } from './cases/cases.service';
 import { MastersController } from './masters/masters.controller';
 import { PayoutsController } from './payouts/payouts.controller';
+import { PayoutAttachmentsController } from './payouts/payout-attachments.controller';
 import { DashboardController } from './dashboard/dashboard.controller';
 import { NotificationsController } from './notifications/notifications.controller';
 import { HealthController } from './health/health.controller';
@@ -41,6 +42,7 @@ import { RecoveryService } from './recovery/recovery.service';
     CasesController,
     MastersController,
     PayoutsController,
+    PayoutAttachmentsController,
     DashboardController,
     NotificationsController,
     HealthController,

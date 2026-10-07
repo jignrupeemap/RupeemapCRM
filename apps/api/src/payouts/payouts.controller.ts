@@ -57,7 +57,11 @@ export class PayoutsController {
     const [items, total, sums] = await Promise.all([
       this.prisma.payout.findMany({
         where,
-        include: { loanCase: { select: { id: true, caseNo: true, dsaId: true, teamPartnerId: true, loanType: true, loanAccountNo: true, handoverDate: true, customer: { select: { name: true } }, bank: { select: { name: true } } } } },
+        include: {
+          loanCase: { select: { id: true, caseNo: true, dsaId: true, teamPartnerId: true, loanType: true, loanAccountNo: true, handoverDate: true, customer: { select: { name: true } }, bank: { select: { name: true } } } },
+          // Banker confirmations are staff-only; partners never get the count.
+          ...(user.role === 'ADMIN' || user.role === 'EXECUTIVE' ? { _count: { select: { attachments: { where: { deletedAt: null } } } } } : {}),
+        },
         orderBy: { createdAt: 'desc' },
         skip: (page - 1) * pageSize,
         take: pageSize,
