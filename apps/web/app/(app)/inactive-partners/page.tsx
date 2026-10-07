@@ -240,6 +240,10 @@ function PartnerCell({ r }: { r: Row }) {
         <Link href={`/cases?${r.role === 'TEAM_PARTNER' ? 'teamPartnerId' : 'dsaId'}=${r.id}`} className="font-semibold hover:underline">
           {r.name}
         </Link>
+        {/* Staff call partners straight from here: tap to dial on a phone. */}
+        <a href={`tel:+91${r.mobile}`} className="mt-0.5 flex w-fit items-center gap-1.5 text-sm font-semibold tabular-nums text-teal-800 hover:underline" title={`Call ${r.name}`}>
+          <Phone className="h-3.5 w-3.5" /> +91 {r.mobile.slice(0, 5)} {r.mobile.slice(5)}
+        </a>
         <p className="truncate text-xs text-ink-500">
           <Badge tone={r.role === 'DSA' ? 'dark' : 'neutral'}>{r.role === 'DSA' ? (r.dsaCode ?? 'DSA') : 'Team Partner'}</Badge>
           {r.dsaName && <span> · Team of {r.dsaName}</span>}
