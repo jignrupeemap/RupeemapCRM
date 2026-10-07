@@ -11,6 +11,7 @@ import { api, ApiError } from '@/lib/api';
 import { fmtDate, formatINRCompact, initials } from '@/lib/format';
 import { useCan, useMe } from '@/lib/session';
 import { Badge, Button, Card, cx, EmptyState, ErrorState, Field, Input, Modal, Pagination, Select, Skeleton, Textarea } from './ui';
+import { PartnerCardModal } from './partner-card';
 import { DateRangeFilter, DEFAULT_RANGE, rangeToParams, type RangeValue } from './date-range';
 
 export interface Person {
@@ -49,6 +50,8 @@ export function PeopleList({ role, title, initialStatus = '', initialQuery = '' 
   const [range, setRange] = useState<RangeValue>(DEFAULT_RANGE);
   const dates = rangeToParams(range);
   const [action, setAction] = useState<{ p: Person; kind: 'rate' | 'status' | 'reset' | 'promote' | 'kyc' } | null>(null);
+  const [profileOf, setProfileOf] = useState<string | null>(null);
+  const isStaff = me?.role === 'ADMIN' || me?.role === 'EXECUTIVE';
   const router = useRouter();
   const list = useQuery({
     queryKey: ['users', roleFilter, statusFilter, q, page, dates],
@@ -90,6 +93,7 @@ export function PeopleList({ role, title, initialStatus = '', initialQuery = '' 
         )}
       </div>
 
+      {profileOf && <PartnerCardModal userId={profileOf} onClose={() => setProfileOf(null)} />}
       {list.isError ? (
         <Card>
           <ErrorState error={list.error} onRetry={() => list.refetch()} />
@@ -129,6 +133,11 @@ export function PeopleList({ role, title, initialStatus = '', initialQuery = '' 
                             <Link href={`/cases?${p.role === 'TEAM_PARTNER' ? 'teamPartnerId' : 'dsaId'}=${p.id}`} className="font-semibold hover:underline">
                               {p.name}
                             </Link>
+                            {isStaff && p.role !== 'ADMIN' && (
+                              <button onClick={() => setProfileOf(p.id)} className="ml-2 rounded-md px-1.5 py-0.5 text-xs font-semibold text-teal-700 ring-1 ring-inset ring-teal-200 hover:bg-teal-50">
+                                Profile
+                              </button>
+                            )}
                             <p className="text-xs text-ink-500">
                               +91 {p.mobile}
                               {!role && ` · ${ROLE_LABELS[p.role]}`}
@@ -229,7 +238,7 @@ function AddPersonModal({ onClose }: { onClose: () => void }) {
   const { data: me } = useMe();
   const can = useCan();
   const roles = (['DSA', 'TEAM_PARTNER', 'EXECUTIVE'] as const).filter((r) => can(r === 'DSA' ? 'USER_CREATE_DSA' : r === 'TEAM_PARTNER' ? 'USER_CREATE_TEAM_PARTNER' : 'USER_CREATE_EXECUTIVE'));
-  const [v, setV] = useState({ name: '', mobile: '', email: '', role: roles.includes('DSA') ? 'DSA' : 'TEAM_PARTNER', dsaId: '', payoutPercent: '' });
+  const [v, setV] = useState({ name: '', mobile: '', email: '', officeAddress: '', residenceAddress: '', role: roles.includes('DSA') ? 'DSA' : 'TEAM_PARTNER', dsaId: '', payoutPercent: '' });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const dsas = useQuery({ queryKey: ['dsa-list'], queryFn: () => api.page<{ id: string; name: string; dsaCode: string }>('/users', { role: 'DSA', status: 'ACTIVE', pageSize: 100 }), enabled: me?.role !== 'DSA' });
   const m = useMutation({
@@ -238,6 +247,8 @@ function AddPersonModal({ onClose }: { onClose: () => void }) {
         name: v.name,
         mobile: v.mobile,
         email: v.email || undefined,
+        officeAddress: v.role === 'EXECUTIVE' ? undefined : v.officeAddress,
+        residenceAddress: v.role === 'EXECUTIVE' ? undefined : v.residenceAddress,
         role: v.role,
         dsaId: v.role === 'TEAM_PARTNER' && me?.role !== 'DSA' ? v.dsaId || undefined : undefined,
         payoutPercent: v.payoutPercent === '' || v.role === 'EXECUTIVE' ? undefined : v.payoutPercent,
@@ -287,6 +298,16 @@ function AddPersonModal({ onClose }: { onClose: () => void }) {
         <Field label="Email" htmlFor="em" error={errors.email}>
           <Input id="em" type="email" value={v.email} onChange={(e) => set('email', e.target.value)} />
         </Field>
+        {v.role !== 'EXECUTIVE' && (
+          <>
+            <Field label="Office address" htmlFor="oa" error={errors.officeAddress} hint="Can be added later by Admin or an Admin Executive">
+              <Textarea id="oa" value={v.officeAddress} onChange={(e) => set('officeAddress', e.target.value)} maxLength={400} placeholder="Shop / office no., building, area, city, PIN" className="min-h-[64px]" />
+            </Field>
+            <Field label="Residence address" htmlFor="ra" error={errors.residenceAddress}>
+              <Textarea id="ra" value={v.residenceAddress} onChange={(e) => set('residenceAddress', e.target.value)} maxLength={400} placeholder="House / flat no., society, area, city, PIN" className="min-h-[64px]" />
+            </Field>
+          </>
+        )}
         {v.role === 'TEAM_PARTNER' && me?.role !== 'DSA' && (
           <Field label="DSA" required htmlFor="ds" error={errors.dsaId}>
             <Select id="ds" value={v.dsaId} onChange={(e) => set('dsaId', e.target.value)}>

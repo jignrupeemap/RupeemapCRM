@@ -9,6 +9,7 @@ import { api } from '@/lib/api';
 import { fmtDate, formatINR, loanTypeName } from '@/lib/format';
 import { useCan, useMe } from '@/lib/session';
 import { PageHeader } from '@/components/shell';
+import { PartnerCardModal } from '@/components/partner-card';
 import { Button, Card, cx, EmptyState, ErrorState, Input, Pagination, Select, Skeleton, StatusChip } from '@/components/ui';
 
 interface CaseRow {
@@ -43,7 +44,7 @@ function PartPayment({ c }: { c: CaseRow }) {
 }
 
 /** Who brought the case in: the Team Partner if any, otherwise the DSA ("Self" for the DSA viewing their own). */
-function SourcedBy({ c, role, compact }: { c: CaseRow; role?: string; compact?: boolean }) {
+function SourcedBy({ c, role, compact, onOpen }: { c: CaseRow; role?: string; compact?: boolean; onOpen?: (userId: string) => void }) {
   const person = c.teamPartner ?? c.dsa;
   if (!person) return <span className="text-ink-400">—</span>;
   const self = role === 'DSA' && !c.teamPartner;
@@ -53,7 +54,18 @@ function SourcedBy({ c, role, compact }: { c: CaseRow; role?: string; compact?: 
   return (
     <div className={cx('flex items-center gap-2', compact && 'justify-between')}>
       <div className="min-w-0">
-        <p className={cx('truncate font-semibold', self ? 'text-teal-800' : 'text-ink')}>{label}</p>
+        {onOpen && !self ? (
+          <button
+            type="button"
+            onClick={(e) => (e.preventDefault(), e.stopPropagation(), onOpen(person.id))}
+            className="block max-w-full truncate text-left font-semibold text-teal-800 underline-offset-2 hover:underline"
+            title={`Open ${person.name}'s profile`}
+          >
+            {label}
+          </button>
+        ) : (
+          <p className={cx('truncate font-semibold', self ? 'text-teal-800' : 'text-ink')}>{label}</p>
+        )}
         {sub && !compact && <p className="truncate text-xs text-ink-500">{sub}</p>}
       </div>
       {!self && (
@@ -93,6 +105,8 @@ function Cases() {
   const { data: me } = useMe();
   const [q, setQ] = useState(params.get('q') ?? '');
   const [showFilters, setShowFilters] = useState(false);
+  const [profileOf, setProfileOf] = useState<string | null>(null);
+  const openProfile = me?.role === 'ADMIN' || me?.role === 'EXECUTIVE' ? setProfileOf : undefined;
 
   const filters = {
     q: params.get('q') ?? '',
@@ -155,6 +169,7 @@ function Cases() {
         }
       />
 
+      {profileOf && <PartnerCardModal userId={profileOf} onClose={() => setProfileOf(null)} />}
       <div className="space-y-3">
         <div className="flex gap-2">
           <div className="relative flex-1">
@@ -291,7 +306,7 @@ function Cases() {
                         </td>
                         {me?.role !== 'TEAM_PARTNER' && (
                           <td className="max-w-[220px] px-4 py-3">
-                            <SourcedBy c={c} role={me?.role} />
+                            <SourcedBy c={c} role={me?.role} onOpen={openProfile} />
                           </td>
                         )}
                         <td className="px-4 py-3 text-ink-700">{loanTypeName(c.loanType)}</td>
@@ -335,7 +350,7 @@ function Cases() {
                     <div className="flex items-center gap-2 border-t border-ink-100 px-4 py-2 text-sm">
                       <span className="shrink-0 text-xs text-ink-500">Sourced by</span>
                       <div className="min-w-0 flex-1">
-                        <SourcedBy c={c} role={me?.role} compact />
+                        <SourcedBy c={c} role={me?.role} compact onOpen={openProfile} />
                       </div>
                     </div>
                   )}

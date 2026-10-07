@@ -1,6 +1,6 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Put, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Put, Query } from '@nestjs/common';
 import { z } from 'zod';
-import { createUserSchema, payoutRateSchema, userStatusActionSchema } from '@rupeemap/shared';
+import { createUserSchema, payoutRateSchema, userContactSchema, userStatusActionSchema } from '@rupeemap/shared';
 import { UsersService } from './users.service';
 import { parse } from '../common/validate';
 import { CurrentUser, Meta, RequirePermission, type AuthUser, type RequestMeta } from '../common/auth-context';
@@ -22,6 +22,19 @@ export class UsersController {
   @RequirePermission('USER_VIEW')
   list(@CurrentUser() user: AuthUser, @Query() q: Record<string, string>) {
     return this.users.list(user, q);
+  }
+
+  /** Profile card (name, mobile, email, office and residence address) for Admin / Admin Executive. */
+  @Get(':id/card')
+  @RequirePermission('USER_VIEW')
+  card(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string) {
+    return this.users.card(user, id);
+  }
+
+  @Patch(':id/contact')
+  @RequirePermission('USER_VIEW')
+  contact(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string, @Body() body: unknown, @Meta() meta: RequestMeta) {
+    return this.users.updateContact(user, id, parse(userContactSchema, body), meta);
   }
 
   @Get(':id')

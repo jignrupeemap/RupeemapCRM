@@ -82,6 +82,8 @@ export class UsersService {
           name: input.name,
           mobile: input.mobile,
           email: input.email || null,
+          officeAddress: input.officeAddress ?? null,
+          residenceAddress: input.residenceAddress ?? null,
           role: input.role,
           status: 'PENDING_ACTIVATION',
           createdById: actor.id,
@@ -387,6 +389,45 @@ export class UsersService {
       });
       await this.audit.log(tx, actor, { action: `KYC_${decision}D`, entity: 'kyc', entityId: kyc.id, before: { status: kyc.status }, after: { status: k.status, reason } }, meta);
       return k;
+    });
+  }
+
+  /**
+   * Partner profile card for Admin / Admin Executive (e.g. from "Sourced by" on a case):
+   * contact details, addresses, team and code, with what is still missing.
+   */
+  async card(actor: AuthUser, id: string) {
+    if (actor.role !== 'ADMIN' && actor.role !== 'EXECUTIVE') throw forbidden();
+    const u = await this.prisma.user.findFirst({
+      where: { id, deletedAt: null },
+      select: {
+        id: true, name: true, mobile: true, email: true, role: true, status: true, officeAddress: true, residenceAddress: true, lastLoginAt: true, createdAt: true,
+        dsaProfile: { select: { code: true, firmName: true } },
+        memberships: { where: { endedOn: null }, select: { dsa: { select: { code: true, user: { select: { id: true, name: true, mobile: true } } } } }, take: 1 },
+      },
+    });
+    if (!u) throw notFound('User');
+    const team = u.memberships[0]?.dsa;
+    return {
+      id: u.id, name: u.name, mobile: u.mobile, email: u.email, role: u.role, status: u.status,
+      officeAddress: u.officeAddress, residenceAddress: u.residenceAddress, lastLoginAt: u.lastLoginAt, joinedAt: u.createdAt,
+      dsaCode: u.dsaProfile?.code ?? null, firmName: u.dsaProfile?.firmName ?? null,
+      dsa: team ? { id: team.user.id, name: team.user.name, mobile: team.user.mobile, code: team.code } : null,
+      canEdit: true,
+    };
+  }
+
+  /** Admin / Admin Executive fill in or correct a partner's email and addresses. Audited. */
+  async updateContact(actor: AuthUser, id: string, input: { email?: string | null; officeAddress?: string | null; residenceAddress?: string | null }, meta: RequestMeta) {
+    if (actor.role !== 'ADMIN' && actor.role !== 'EXECUTIVE') throw forbidden();
+    const before = await this.prisma.user.findFirst({ where: { id, deletedAt: null }, select: { email: true, officeAddress: true, residenceAddress: true, role: true } });
+    if (!before) throw notFound('User');
+    if (before.role === 'ADMIN' && actor.role !== 'ADMIN') throw forbidden();
+    const data = Object.fromEntries(Object.entries(input).filter(([, v]) => v !== undefined));
+    return this.prisma.$transaction(async (tx) => {
+      const after = await tx.user.update({ where: { id }, data, select: { email: true, officeAddress: true, residenceAddress: true } });
+      await this.audit.log(tx, actor, { action: 'USER_CONTACT_UPDATED', entity: 'user', entityId: id, before, after }, meta);
+      return after;
     });
   }
 }

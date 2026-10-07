@@ -144,6 +144,8 @@ model User {
   role              Role
   status            UserStatus @default(PENDING_ACTIVATION)
   mobileVerified    Boolean    @default(false) @map("mobile_verified")
+  officeAddress     String?    @map("office_address")
+  residenceAddress  String?    @map("residence_address")
   failedLogins      Int        @default(0) @map("failed_logins")
   lockedUntil       DateTime?  @map("locked_until")
   lastLoginAt       DateTime?  @map("last_login_at")

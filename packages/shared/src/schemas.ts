@@ -51,10 +51,23 @@ export const changePasswordSchema = z.object({
   newPassword: passwordSchema,
 });
 
+/** Blank text counts as "not given". */
+const blankToNull = (v: unknown) => (typeof v === 'string' && v.trim() === '' ? null : v);
+const address = z.preprocess(blankToNull, z.string().trim().max(400, 'Keep the address under 400 characters').nullable().optional()).transform((v) => v ?? undefined);
+
 export const createPartnerSchema = z.object({
   name: z.string().trim().min(2, 'Enter the full name').max(120),
   mobile: mobileSchema,
   email: z.string().trim().email('Enter a valid email').optional().or(z.literal('')),
+  officeAddress: address,
+  residenceAddress: address,
+});
+
+/** Admin / Admin Executive fill in or correct a partner's contact details later. */
+export const userContactSchema = z.object({
+  email: z.preprocess(blankToNull, z.string().trim().email('Enter a valid email').nullable().optional()),
+  officeAddress: z.preprocess(blankToNull, z.string().trim().max(400, 'Keep the address under 400 characters').nullable().optional()),
+  residenceAddress: z.preprocess(blankToNull, z.string().trim().max(400, 'Keep the address under 400 characters').nullable().optional()),
 });
 
 export const createUserSchema = createPartnerSchema.extend({

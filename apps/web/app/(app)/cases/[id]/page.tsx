@@ -181,6 +181,8 @@ export default function CaseDetailPage() {
                 <div className="mt-6 border-t border-ink-100 pt-5">
                   <DetailGrid
                     items={[
+                      ['Loan type', loanTypeName(c.loanType)],
+                      ['Bank / NBFC', c.bank.name],
                       ['Loan account', c.loanAccountNo],
                       ['Project', c.project?.name],
                       ['Sales manager', c.salesManager?.name ?? c.salesManagerName],
