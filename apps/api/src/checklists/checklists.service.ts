@@ -61,13 +61,13 @@ export class ChecklistsService {
   }
 
   /** The combined document list for a bank + loan type (+ customer profile, project). Same document name appears once. */
-  async resolve(filter: { bankId: string; loanType: string; profile?: string | null; projectId?: string | null }): Promise<ResolvedItem[]> {
+  async resolve(filter: { bankId?: string | null; loanType: string; profile?: string | null; projectId?: string | null }): Promise<ResolvedItem[]> {
     const templates = await this.prisma.checklistTemplate.findMany({
       where: {
         deletedAt: null,
         active: true,
         AND: [
-          { OR: [{ bankId: null }, { bankId: filter.bankId }] },
+          { OR: [{ bankId: null }, ...(filter.bankId ? [{ bankId: filter.bankId }] : [])] },
           { OR: [{ loanType: null }, { loanType: filter.loanType }] },
           { OR: [{ projectId: null }, ...(filter.projectId ? [{ projectId: filter.projectId }] : [])] },
           { OR: [{ profile: null }, ...(filter.profile ? [{ profile: filter.profile }] : [])] },

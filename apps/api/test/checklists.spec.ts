@@ -113,6 +113,12 @@ describe('Checklists', () => {
     expect(none).not.toContain('Salary slips (last 3 months)');
     expect(none).toContain('PAN card');
     expect((await tp.get('/api/v1/checklists/resolve').query({ bankId: bank.id, loanType: 'HOME_LOAN', profile: 'ALIEN' })).status).toBe(400);
+    // The Checklist page asks for the profile only (no bank): general and profile documents still come back.
+    const noBank = (await tp.get('/api/v1/checklists/resolve').query({ loanType: 'HOME_LOAN', profile: 'SENP' })).body.data.map((i: any) => i.name);
+    expect(noBank).toContain('Business proof: GST / Shop Act / Udyam registration');
+    expect(noBank).toContain('PAN card');
+    // Pensioner is no longer a profile.
+    expect((await tp.get('/api/v1/checklists/resolve').query({ loanType: 'HOME_LOAN', profile: 'PENSIONER' })).status).toBe(400);
   });
 
   it("a case's profile picks its checklist, and the person handling the case can change it", async () => {

@@ -6,7 +6,8 @@ import { parse } from '../common/validate';
 import { CurrentUser, Meta, RequirePermission, type AuthUser, type RequestMeta } from '../common/auth-context';
 
 const resolveSchema = z.object({
-  bankId: z.string().uuid('Choose a bank'),
+  /** Optional: without a bank only the general (all-bank) checklists apply. */
+  bankId: z.preprocess((v) => (v === '' ? undefined : v), z.string().uuid().optional()),
   loanType: z.string().min(1, 'Choose a loan type').max(40),
   profile: z.preprocess((v) => (v === '' ? undefined : v), z.enum(CUSTOMER_PROFILES).optional()),
   projectId: z.preprocess((v) => (v === '' ? undefined : v), z.string().uuid().optional()),

@@ -61,16 +61,6 @@ export const PROFILE_CHECKLISTS: { profile: string; name: string; items: [string
       ['Continuous discharge certificate (seafarers)', false],
     ],
   },
-  {
-    profile: 'PENSIONER',
-    name: 'Pensioner: pension documents',
-    items: [
-      ['Pension payment order (PPO)', true],
-      ['Pension account statement (last 6 months)', true],
-      ['Form 16 / ITR (last 2 years)', false, 'If applicable'],
-      ['Retirement / service certificate', false],
-    ],
-  },
 ];
 
 /**
@@ -90,6 +80,8 @@ export async function seedProfileChecklists(prisma: PrismaClient, createdById: s
       data: { active: false },
     });
   }
+  // The Pensioner profile was withdrawn (Oct 2026): switch its checklist off, keep the record.
+  await prisma.checklistTemplate.updateMany({ where: { profile: 'PENSIONER', deletedAt: null, active: true }, data: { active: false } });
   let added = 0;
   for (const t of PROFILE_CHECKLISTS) {
     const exists = await prisma.checklistTemplate.findFirst({ where: { name: t.name, deletedAt: null } });

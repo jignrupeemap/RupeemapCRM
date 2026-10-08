@@ -1,7 +1,7 @@
 'use client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowDown, ArrowUp, Copy, MessageCircle, Pencil, Plus, Trash2, X } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { api, ApiError } from '@/lib/api';
 import { CUSTOMER_PROFILES, CUSTOMER_PROFILE_LABELS, CUSTOMER_PROFILE_SHORT, type CustomerProfile } from '@rupeemap/shared';
@@ -36,7 +36,7 @@ export default function ChecklistPage() {
   const manage = can('CHECKLIST_MANAGE');
   return (
     <div>
-      <PageHeader title="Checklist" sub="Documents each bank needs, by loan type and customer profile. Pick them to see the list and share it with your customer." />
+      <PageHeader title="Checklist" sub="Pick the customer profile, tick the documents you need, and share the list on WhatsApp or copy it." />
       {manage ? (
         <Tabs defaultValue="finder">
           <TabList>
@@ -58,43 +58,38 @@ export default function ChecklistPage() {
 }
 
 function Finder({ manage = false }: { manage?: boolean }) {
-  const { banks, loanTypes } = useMasters();
-  const [editing, setEditing] = useState<Template | null>(null);
+  const { loanTypes } = useMasters();
+  const [editing, setEditing] = useState<Template | 'new' | null>(null);
   const templates = useQuery({ queryKey: ['checklists', 'manage'], queryFn: () => api.get<Template[]>('/checklists', { includeInactive: '1' }), enabled: manage });
-  const [bankId, setBankId] = useState('');
   const [loanType, setLoanType] = useState('HOME_LOAN');
-  const [profile, setProfile] = useState<CustomerProfile | ''>('SALARIED');
+  const [profile, setProfile] = useState<CustomerProfile>('SALARIED');
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [customer, setCustomer] = useState('');
   const q = useQuery({
-    queryKey: ['checklist', 'resolve', bankId, loanType, profile],
-    queryFn: () => api.get<ResolvedItem[]>('/checklists/resolve', { bankId, loanType, profile }),
-    enabled: !!bankId && !!loanType,
+    queryKey: ['checklist', 'resolve', loanType, profile],
+    queryFn: () => api.get<ResolvedItem[]>('/checklists/resolve', { loanType, profile }),
+    enabled: !!loanType,
   });
   const items = q.data ?? [];
-  const msg = pendingDocsMessage('Customer', items);
+  // A new profile or loan type starts with nothing ticked.
+  useEffect(() => setPicked(new Set()), [loanType, profile]);
+  const chosen = items.filter((i) => picked.has(i.itemId));
+  const allPicked = items.length > 0 && chosen.length === items.length;
+  const msg = pendingDocsMessage(customer.trim() || 'Customer', chosen);
   const sources = [...new Map(items.map((i) => [i.templateId, i.source])).entries()];
+  const toggle = (id: string) =>
+    setPicked((cur) => {
+      const next = new Set(cur);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  const ownProfileList = templates.data?.find((t) => t.profile === profile && !t.bankId && !t.loanType && t.active);
+
   return (
     <div className="grid gap-5 lg:grid-cols-3">
       <Card className="h-fit space-y-4 p-5">
-        <Field label="Bank / NBFC" required htmlFor="cb">
-          <Select id="cb" value={bankId} onChange={(e) => setBankId(e.target.value)}>
-            <option value="">Choose bank</option>
-            {banks.map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.name}
-              </option>
-            ))}
-          </Select>
-        </Field>
-        <Field label="Loan type" required htmlFor="cl">
-          <Select id="cl" value={loanType} onChange={(e) => setLoanType(e.target.value)}>
-            {loanTypes.map((l) => (
-              <option key={l.code} value={l.code}>
-                {l.name}
-              </option>
-            ))}
-          </Select>
-        </Field>
-        <Field label="Customer profile" required htmlFor="cp" hint="Decides the income documents the bank asks for">
+        <Field label="Customer profile" required htmlFor="cp" hint="Shows the documents Rupeemap has set for this profile">
           <div id="cp" role="radiogroup" aria-label="Customer profile" className="grid grid-cols-2 gap-2">
             {CUSTOMER_PROFILES.map((x) => (
               <button
@@ -114,12 +109,22 @@ function Finder({ manage = false }: { manage?: boolean }) {
             ))}
           </div>
         </Field>
-        {profile && <p className="text-xs text-ink-500">{CUSTOMER_PROFILE_LABELS[profile]}</p>}
+        <p className="text-xs text-ink-500">{CUSTOMER_PROFILE_LABELS[profile]}</p>
+        <Field label="Loan type" htmlFor="cl">
+          <Select id="cl" value={loanType} onChange={(e) => setLoanType(e.target.value)}>
+            {loanTypes.map((l) => (
+              <option key={l.code} value={l.code}>
+                {l.name}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field label="Customer name" htmlFor="cn" hint="Optional. Used in the message you share.">
+          <Input id="cn" value={customer} onChange={(e) => setCustomer(e.target.value)} placeholder="e.g. Jay Patel" />
+        </Field>
       </Card>
       <Card className="overflow-hidden lg:col-span-2">
-        {!bankId ? (
-          <EmptyState title="Choose a bank" body="The combined document list for that bank and loan type appears here." />
-        ) : q.isLoading ? (
+        {q.isLoading ? (
           <div className="space-y-2 p-5">
             {Array.from({ length: 6 }).map((_, i) => (
               <Skeleton key={i} className="h-10" />
@@ -128,40 +133,80 @@ function Finder({ manage = false }: { manage?: boolean }) {
         ) : q.isError ? (
           <ErrorState error={q.error} onRetry={() => q.refetch()} />
         ) : !items.length ? (
-          <EmptyState title="No checklist set up yet" body="Ask Rupeemap to add one for this bank and loan type." />
+          <EmptyState
+            title={`No documents set for ${CUSTOMER_PROFILE_SHORT[profile]} yet`}
+            body={manage ? 'Create the document list for this profile.' : 'Ask Rupeemap to add the document list for this profile.'}
+            action={
+              manage && (
+                <Button icon={<Plus className="h-4 w-4" />} onClick={() => setEditing('new')}>
+                  Create {CUSTOMER_PROFILE_SHORT[profile]} checklist
+                </Button>
+              )
+            }
+          />
         ) : (
           <>
-            <div className="flex flex-col gap-2 border-b border-ink-100 p-4 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="text-sm text-ink-600">
-                  <span className="font-semibold text-ink">{items.filter((i) => i.required).length} required</span>, {items.filter((i) => !i.required).length} optional
-                  {profile && <> · {CUSTOMER_PROFILE_SHORT[profile]}</>}
-                </p>
-                <p className="mt-0.5 text-xs text-ink-500">From: {sources.map(([, name]) => name).join(' · ')}</p>
-              </div>
+            <div className="flex flex-col gap-3 border-b border-ink-100 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <label className="flex cursor-pointer items-center gap-3">
+                <input
+                  type="checkbox"
+                  className="h-5 w-5 accent-teal-700"
+                  checked={allPicked}
+                  ref={(el) => {
+                    if (el) el.indeterminate = chosen.length > 0 && !allPicked;
+                  }}
+                  onChange={() => setPicked(allPicked ? new Set() : new Set(items.map((i) => i.itemId)))}
+                  aria-label="Select all documents"
+                />
+                <span>
+                  <span className="block text-sm font-semibold text-ink">Select all</span>
+                  <span className="block text-xs text-ink-500">
+                    {chosen.length} of {items.length} selected · {CUSTOMER_PROFILE_SHORT[profile]}
+                  </span>
+                </span>
+              </label>
               <div className="flex gap-2">
                 <a
-                  href={`https://wa.me/?text=${encodeURIComponent(msg)}`}
+                  href={chosen.length ? `https://wa.me/?text=${encodeURIComponent(msg)}` : undefined}
                   target="_blank"
                   rel="noreferrer"
-                  className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-emerald-50 px-3 text-sm font-semibold text-emerald-800 ring-1 ring-inset ring-emerald-200 hover:bg-emerald-100"
+                  aria-disabled={!chosen.length}
+                  onClick={(e) => {
+                    if (!chosen.length) {
+                      e.preventDefault();
+                      toast.error('Select at least one document');
+                    }
+                  }}
+                  className={cx(
+                    'inline-flex h-9 items-center gap-1.5 rounded-xl px-3 text-sm font-semibold ring-1 ring-inset',
+                    chosen.length ? 'bg-emerald-50 text-emerald-800 ring-emerald-200 hover:bg-emerald-100' : 'cursor-not-allowed bg-ink-50 text-ink-400 ring-ink-200',
+                  )}
                 >
                   <MessageCircle className="h-4 w-4" /> Share on WhatsApp
                 </a>
-                <Button size="sm" variant="secondary" icon={<Copy className="h-4 w-4" />} onClick={() => navigator.clipboard.writeText(msg).then(() => toast.success('List copied'))}>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  icon={<Copy className="h-4 w-4" />}
+                  disabled={!chosen.length}
+                  onClick={() => navigator.clipboard.writeText(msg).then(() => toast.success(`${chosen.length} documents copied`))}
+                >
                   Copy
                 </Button>
               </div>
             </div>
             <ol className="divide-y divide-ink-100">
               {items.map((i, n) => (
-                <li key={i.itemId} className="flex items-start gap-3 px-4 py-3">
-                  <span className="mt-0.5 w-6 shrink-0 text-right font-display text-sm font-bold tabular-nums text-ink-400">{n + 1}</span>
-                  <div className="min-w-0 flex-1">
-                    <p className="font-semibold">{i.name}</p>
-                    {i.hint && <p className="text-xs text-ink-500">{i.hint}</p>}
-                  </div>
-                  {i.required ? <Badge tone="red">Required</Badge> : <Badge>Optional</Badge>}
+                <li key={i.itemId}>
+                  <label className={cx('flex cursor-pointer items-start gap-3 px-4 py-3 transition', picked.has(i.itemId) ? 'bg-teal-50/60' : 'hover:bg-ink-50')}>
+                    <input type="checkbox" className="mt-1 h-5 w-5 shrink-0 accent-teal-700" checked={picked.has(i.itemId)} onChange={() => toggle(i.itemId)} aria-label={i.name} />
+                    <span className="mt-0.5 w-5 shrink-0 text-right font-display text-sm font-bold tabular-nums text-ink-400">{n + 1}</span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block font-semibold">{i.name}</span>
+                      {i.hint && <span className="block text-xs text-ink-500">{i.hint}</span>}
+                    </span>
+                    {i.required ? <Badge tone="red">Required</Badge> : <Badge>Optional</Badge>}
+                  </label>
                 </li>
               ))}
             </ol>
@@ -176,12 +221,17 @@ function Finder({ manage = false }: { manage?: boolean }) {
                     </Button>
                   );
                 })}
+                {!ownProfileList && (
+                  <Button size="sm" variant="secondary" icon={<Plus className="h-3.5 w-3.5" />} onClick={() => setEditing('new')}>
+                    New {CUSTOMER_PROFILE_SHORT[profile]} list
+                  </Button>
+                )}
               </div>
             )}
           </>
         )}
       </Card>
-      {editing && <TemplateModal template={editing} onClose={() => setEditing(null)} />}
+      {editing && <TemplateModal template={editing === 'new' ? null : editing} preset={{ profile }} onClose={() => setEditing(null)} />}
     </div>
   );
 }
@@ -216,7 +266,7 @@ function Manager() {
                   <div className="mt-1.5 flex flex-wrap gap-1.5">
                     <Badge tone={t.bankName ? 'dark' : 'neutral'}>{t.bankName ?? 'All banks'}</Badge>
                     <Badge tone={t.loanType ? 'teal' : 'neutral'}>{t.loanType ? loanTypeName(t.loanType) : 'All loan types'}</Badge>
-                    <Badge tone={t.profile ? 'gold' : 'neutral'}>{t.profile ? CUSTOMER_PROFILE_SHORT[t.profile] : 'All profiles'}</Badge>
+                    <Badge tone={t.profile ? 'gold' : 'neutral'}>{t.profile ? (CUSTOMER_PROFILE_SHORT[t.profile] ?? t.profile) : 'All profiles'}</Badge>
                     {t.projectName && <Badge>{t.projectName}</Badge>}
                     {!t.active && <Badge tone="red">Inactive</Badge>}
                   </div>
@@ -245,14 +295,14 @@ function Manager() {
 
 type DraftItem = { id?: string; name: string; required: boolean; hint: string };
 
-function TemplateModal({ template, onClose }: { template: Template | null; onClose: () => void }) {
+function TemplateModal({ template, preset, onClose }: { template: Template | null; preset?: { profile?: CustomerProfile }; onClose: () => void }) {
   const qc = useQueryClient();
   const { banks, loanTypes } = useMasters();
   const [v, setV] = useState({
     name: template?.name ?? '',
     bankId: template?.bankId ?? '',
     loanType: template?.loanType ?? '',
-    profile: (template?.profile ?? '') as CustomerProfile | '',
+    profile: (template?.profile ?? preset?.profile ?? '') as CustomerProfile | '',
     // Kept as-is for older checklists that were tied to a project; no longer chosen here.
     projectId: template?.projectId ?? '',
     active: template?.active ?? true,
