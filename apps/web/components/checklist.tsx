@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, CircleSlash, Copy, MessageCircle } from 'lucide-react';
 import { toast } from 'sonner';
-import { CUSTOMER_PROFILES, CUSTOMER_PROFILE_LABELS, CUSTOMER_PROFILE_SHORT, type ChecklistItemStatus, type CustomerProfile } from '@rupeemap/shared';
+import { CHECKLIST_SECTION_LABELS, type ChecklistSection, CUSTOMER_PROFILES, CUSTOMER_PROFILE_LABELS, CUSTOMER_PROFILE_SHORT, type ChecklistItemStatus, type CustomerProfile } from '@rupeemap/shared';
 import { api, ApiError } from '@/lib/api';
 import { timeAgo } from '@/lib/format';
 import { Badge, Card, cx, EmptyState, ErrorState, Skeleton } from './ui';
@@ -15,6 +15,7 @@ export interface ResolvedItem {
   hint: string | null;
   source: string;
   templateId: string;
+  section: string;
 }
 
 interface CaseChecklist {
@@ -40,7 +41,7 @@ function ProfilePicker({ caseId, value, canUpdate }: { caseId: string; value: Cu
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-sm font-semibold text-ink">Customer profile</p>
-          <p className="text-xs text-ink-500">{value ? CUSTOMER_PROFILE_LABELS[value] : 'Not set: only general documents are listed. Choose one to add the income documents.'}</p>
+          <p className="text-xs text-ink-500">{value ? CUSTOMER_PROFILE_LABELS[value] : 'Not set yet. Choose the profile to see the document list for this loan.'}</p>
         </div>
         <div role="radiogroup" aria-label="Customer profile" className="flex flex-wrap gap-1.5">
           {CUSTOMER_PROFILES.map((x) => (
@@ -117,7 +118,7 @@ export function CaseChecklistTab({ caseId, customerName, customerMobile }: { cas
       <div className="space-y-4">
         {picker}
         <Card>
-          <EmptyState title="No checklist for this bank, loan type and profile" body="Rupeemap can add one under Checklist. It will then appear on this case automatically." />
+          <EmptyState title={d.customerProfile ? 'No checklist for this loan and profile yet' : 'Choose the customer profile above'} body={d.customerProfile ? 'Rupeemap can add one on the Checklist page. It will then appear on this case automatically.' : 'The document list depends on the loan (HL/LAP, Business, Used Car) and the customer profile.'} />
         </Card>
       </div>
     );
@@ -158,6 +159,7 @@ export function CaseChecklistTab({ caseId, customerName, customerMobile }: { cas
           {d.items.map((i) => (
             <li key={i.itemId} className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0">
+                {i.section && <p className="text-[11px] font-semibold uppercase tracking-[0.05em] text-ink-400">{CHECKLIST_SECTION_LABELS[i.section as ChecklistSection] ?? i.section}</p>}
                 <p className={cx('font-semibold', i.status === 'NOT_APPLICABLE' && 'text-ink-400 line-through')}>
                   {i.name} {i.required ? <Badge tone="red">Required</Badge> : <Badge>Optional</Badge>}
                 </p>

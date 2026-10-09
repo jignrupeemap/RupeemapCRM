@@ -58,12 +58,12 @@ describe('Checklists', () => {
 
   it('combines general and specific checklists, same document once, required wins', async () => {
     const dsa = await login('9000000003');
-    const r = await dsa.get('/api/v1/checklists/resolve').query({ bankId, loanType: 'MORTGAGE_LOAN' });
+    const r = await dsa.get('/api/v1/checklists/resolve').query({ bankId, loanType: 'MORTGAGE_LOAN', profile: 'SALARIED' });
     expect(r.status).toBe(200);
     const names = r.body.data.map((i: any) => i.name);
     expect(names).toContain(`Property title deed ${RUN}`);
     expect(names.filter((n: string) => n.toLowerCase() === 'pan card')).toHaveLength(1);
-    expect(r.body.data.find((i: any) => i.name.toLowerCase() === 'pan card').required).toBe(true); // required in the general KYC list
+    expect(r.body.data.find((i: any) => i.name.toLowerCase() === 'pan card').required).toBe(true); // required in the HL/LAP salaried list
     const other = await dsa.get('/api/v1/checklists/resolve').query({ bankId, loanType: 'HOME_LOAN' });
     expect(other.body.data.map((i: any) => i.name)).not.toContain(`Property title deed ${RUN}`);
   });
@@ -72,6 +72,8 @@ describe('Checklists', () => {
     const c = await prisma.loanCase.findFirst({ where: { deletedAt: null, status: { notIn: ['REJECT', 'WITHDRAW'] } } });
     if (!c) return; // no cases in this database yet
     const admin = await login('9000000001');
+    // Lists belong to a loan and a profile: give the case a profile first.
+    await admin.put(`/api/v1/cases/${c.id}/profile`).set(H).send({ customerProfile: 'SALARIED' });
     const list = await admin.get(`/api/v1/cases/${c.id}/checklist`);
     expect(list.status).toBe(200);
     const item = list.body.data.items[0];
@@ -96,29 +98,49 @@ describe('Checklists', () => {
     await admin.delete(`/api/v1/checklists/${templateId}`).set(H);
   });
 
-  it('profile-wise checklists: salaried, SENP and SEP get their own income documents', async () => {
+  it('Checklist page: each loan (HL/LAP, Business, Used Car) and profile has its own list, in sections', async () => {
     const tp = await login('9000000004');
-    const bank = await prisma.bank.findFirstOrThrow({ where: { active: true } });
-    const names = async (profile?: string) =>
-      ((await tp.get('/api/v1/checklists/resolve').query({ bankId: bank.id, loanType: 'HOME_LOAN', ...(profile ? { profile } : {}) })).body.data as { name: string }[]).map((i) => i.name);
-    const salaried = await names('SALARIED');
-    const senp = await names('SENP');
-    const sep = await names('SEP');
-    const none = await names();
-    expect(salaried).toContain('Salary slips (last 3 months)');
-    expect(salaried).toContain('PAN card'); // basic KYC still included
-    expect(senp).toContain('Business proof: GST / Shop Act / Udyam registration');
-    expect(senp).not.toContain('Salary slips (last 3 months)');
-    expect(sep).toContain('Professional registration certificate');
-    expect(none).not.toContain('Salary slips (last 3 months)');
-    expect(none).toContain('PAN card');
-    expect((await tp.get('/api/v1/checklists/resolve').query({ bankId: bank.id, loanType: 'HOME_LOAN', profile: 'ALIEN' })).status).toBe(400);
-    // The Checklist page asks for the profile only (no bank): general and profile documents still come back.
-    const noBank = (await tp.get('/api/v1/checklists/resolve').query({ loanType: 'HOME_LOAN', profile: 'SENP' })).body.data.map((i: any) => i.name);
-    expect(noBank).toContain('Business proof: GST / Shop Act / Udyam registration');
-    expect(noBank).toContain('PAN card');
-    // Pensioner is no longer a profile.
-    expect((await tp.get('/api/v1/checklists/resolve').query({ loanType: 'HOME_LOAN', profile: 'PENSIONER' })).status).toBe(400);
+    const get = async (loanGroup: string, profile: string) =>
+      (await tp.get('/api/v1/checklists/resolve').query({ loanGroup, profile })).body.data as { name: string; section: string }[];
+    const names = async (g: string, p: string) => (await get(g, p)).map((i) => i.name);
+    const hlSal = await get('HL_LAP', 'SALARIED');
+    expect(hlSal[0].section).toBe('KYC'); // KYC first
+    const order = ['KYC', 'BUSINESS_PROOF', 'INCOME', 'EXISTING_LOAN', 'PROPERTY', 'VEHICLE', 'OTHER'];
+    expect(hlSal.map((i) => order.indexOf(i.section))).toEqual([...hlSal.map((i) => order.indexOf(i.section))].sort((a, b) => a - b));
+    expect(hlSal.map((i) => i.name)).toEqual(expect.arrayContaining(['PAN card', 'Salary slips (last 3 months)', 'Sale agreement / allotment letter']));
+    const hlSenp = await names('HL_LAP', 'SENP');
+    expect(hlSenp).toContain('GST registration / Shop Act / Udyam certificate');
+    expect(hlSenp).not.toContain('Salary slips (last 3 months)');
+    expect(await names('HL_LAP', 'SEP')).toContain('Professional registration certificate');
+    const bl = await names('BUSINESS', 'SENP');
+    expect(bl).not.toContain('Sale agreement / allotment letter'); // no property documents for a business loan
+    const car = await names('USED_CAR', 'SALARIED');
+    expect(car).toContain('RC (registration certificate) of the car');
+    expect(car).not.toContain('Sale agreement / allotment letter');
+    // The retired general lists no longer appear.
+    expect(hlSal.map((i) => i.name)).not.toContain('HDFC application form signed');
+    expect((await tp.get('/api/v1/checklists/resolve').query({ loanGroup: 'HL_LAP', profile: 'ALIEN' })).status).toBe(400);
+    expect((await tp.get('/api/v1/checklists/resolve').query({ loanGroup: 'HL_LAP', profile: 'PENSIONER' })).status).toBe(400);
+    expect((await tp.get('/api/v1/checklists/resolve').query({ profile: 'SALARIED' })).status).toBe(400); // a loan is needed
+  });
+
+  it('Admin edits a loan × profile list on the page; partners cannot', async () => {
+    const admin = await login('9000000001');
+    const list = (await admin.get('/api/v1/checklists').query({ loanGroup: 'USED_CAR', profile: 'NRI', includeInactive: '1' })).body.data;
+    const t = list.find((x: any) => x.loanGroup === 'USED_CAR' && x.profile === 'NRI');
+    expect(t).toBeTruthy();
+    const items = t.items.filter((i: any) => i.active).map((i: any) => ({ id: i.id, name: i.name, required: i.required, hint: i.hint ?? '', section: i.section, active: true }));
+    const body = { name: t.name, loanGroup: 'USED_CAR', profile: 'NRI', active: true, items: [...items, { name: 'Overseas driving licence', required: false, section: 'KYC', active: true }] };
+    const r = await admin.patch(`/api/v1/checklists/${t.id}`).set(H).send(body);
+    expect(r.status, JSON.stringify(r.body)).toBe(200);
+    const after = (await admin.get('/api/v1/checklists/resolve').query({ loanGroup: 'USED_CAR', profile: 'NRI' })).body.data;
+    const added = after.find((i: any) => i.name === 'Overseas driving licence');
+    expect(added.section).toBe('KYC');
+    expect((await admin.get('/api/v1/checklists/resolve').query({ loanGroup: 'USED_CAR', profile: 'SALARIED' })).body.data.map((i: any) => i.name)).not.toContain('Overseas driving licence');
+    const tp = await login('9000000004');
+    expect((await tp.patch(`/api/v1/checklists/${t.id}`).set(H).send(body)).status).toBe(403);
+    // put it back
+    await admin.patch(`/api/v1/checklists/${t.id}`).set(H).send({ ...body, items });
   });
 
   it("a case's profile picks its checklist, and the person handling the case can change it", async () => {

@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
-import type { ChecklistItemStatus, ChecklistTemplateInput } from '@rupeemap/shared';
+import { CHECKLIST_SECTIONS, loanGroupOf, type ChecklistItemStatus, type ChecklistTemplateInput } from '@rupeemap/shared';
 import { PrismaService } from '../common/prisma.service';
 import { AuditService } from '../common/audit.service';
 import { ScopeService } from '../common/scope.service';
@@ -14,6 +14,7 @@ export interface ResolvedItem {
   hint: string | null;
   source: string;
   templateId: string;
+  section: string;
 }
 
 const TEMPLATE_INCLUDE = {
@@ -33,13 +34,14 @@ export class ChecklistsService {
     private readonly scope: ScopeService,
   ) {}
 
-  async list(user: AuthUser, q: { includeInactive?: string; bankId?: string; loanType?: string; profile?: string }) {
+  async list(user: AuthUser, q: { includeInactive?: string; bankId?: string; loanType?: string; profile?: string; loanGroup?: string }) {
     const manage = can(user, 'CHECKLIST_MANAGE');
     const templates = await this.prisma.checklistTemplate.findMany({
       where: {
         deletedAt: null,
         ...(manage && q.includeInactive === '1' ? {} : { active: true }),
         ...(q.bankId ? { OR: [{ bankId: q.bankId }, { bankId: null }] } : {}),
+        ...(q.loanGroup ? { loanGroup: q.loanGroup } : {}),
         AND: [
           q.loanType ? { OR: [{ loanType: q.loanType }, { loanType: null }] } : {},
           q.profile ? { OR: [{ profile: q.profile }, { profile: null }] } : {},
@@ -61,16 +63,30 @@ export class ChecklistsService {
   }
 
   /** The combined document list for a bank + loan type (+ customer profile, project). Same document name appears once. */
-  async resolve(filter: { bankId?: string | null; loanType: string; profile?: string | null; projectId?: string | null }): Promise<ResolvedItem[]> {
+  async resolve(filter: { bankId?: string | null; loanType?: string | null; loanGroup?: string | null; profile?: string | null; projectId?: string | null }): Promise<ResolvedItem[]> {
+    const group = filter.loanGroup ?? loanGroupOf(filter.loanType);
+    const profileMatch = { OR: [{ profile: null }, ...(filter.profile ? [{ profile: filter.profile }] : [])] };
     const templates = await this.prisma.checklistTemplate.findMany({
       where: {
         deletedAt: null,
         active: true,
-        AND: [
-          { OR: [{ bankId: null }, ...(filter.bankId ? [{ bankId: filter.bankId }] : [])] },
-          { OR: [{ loanType: null }, { loanType: filter.loanType }] },
-          { OR: [{ projectId: null }, ...(filter.projectId ? [{ projectId: filter.projectId }] : [])] },
-          { OR: [{ profile: null }, ...(filter.profile ? [{ profile: filter.profile }] : [])] },
+        OR: [
+          // Loan-family lists (HL/LAP, Business, Used Car) for this profile.
+          ...(group ? [{ AND: [{ loanGroup: group }, profileMatch] }] : []),
+          // Older bank / loan-type lists that are still switched on.
+          ...(filter.loanType
+            ? [
+                {
+                  AND: [
+                    { loanGroup: null },
+                    { OR: [{ bankId: null }, ...(filter.bankId ? [{ bankId: filter.bankId }] : [])] },
+                    { OR: [{ loanType: null }, { loanType: filter.loanType }] },
+                    { OR: [{ projectId: null }, ...(filter.projectId ? [{ projectId: filter.projectId }] : [])] },
+                    profileMatch,
+                  ],
+                },
+              ]
+            : []),
         ],
       },
       include: TEMPLATE_INCLUDE,
@@ -89,10 +105,15 @@ export class ChecklistsService {
           prev.required = prev.required || i.required;
           continue;
         }
-        byName.set(key, { itemId: i.id, name: i.name, required: i.required, hint: i.hint, source: t.name, templateId: t.id });
+        byName.set(key, { itemId: i.id, name: i.name, required: i.required, hint: i.hint, source: t.name, templateId: t.id, section: i.section });
       }
     }
-    return [...byName.values()];
+    // Shown section by section (KYC first), keeping each list's own order inside a section.
+    const order = (sec: string) => {
+      const n = (CHECKLIST_SECTIONS as readonly string[]).indexOf(sec);
+      return n < 0 ? CHECKLIST_SECTIONS.length : n;
+    };
+    return [...byName.values()].map((v, n) => ({ v, n })).sort((a, b) => order(a.v.section) - order(b.v.section) || a.n - b.n).map((x) => x.v);
   }
 
   async create(user: AuthUser, input: ChecklistTemplateInput, meta: RequestMeta) {
@@ -101,14 +122,15 @@ export class ChecklistsService {
       const t = await tx.checklistTemplate.create({
         data: {
           name: input.name,
-          bankId: input.bankId ?? null,
-          loanType: input.loanType ?? null,
-          projectId: input.projectId ?? null,
+          bankId: input.loanGroup ? null : (input.bankId ?? null),
+          loanType: input.loanGroup ? null : (input.loanType ?? null),
+          projectId: input.loanGroup ? null : (input.projectId ?? null),
           profile: input.profile ?? null,
+          loanGroup: input.loanGroup ?? null,
           product: input.product ?? null,
           active: input.active,
           createdById: user.id,
-          items: { create: input.items.map((i, n) => ({ name: i.name, required: i.required, hint: i.hint ?? null, active: i.active, sortOrder: n })) },
+          items: { create: input.items.map((i, n) => ({ name: i.name, required: i.required, hint: i.hint ?? null, section: i.section, active: i.active, sortOrder: n })) },
         },
         include: { items: true },
       });
@@ -125,16 +147,25 @@ export class ChecklistsService {
     return this.prisma.$transaction(async (tx) => {
       await tx.checklistTemplate.update({
         where: { id },
-        data: { name: input.name, bankId: input.bankId ?? null, loanType: input.loanType ?? null, projectId: input.projectId ?? null, profile: input.profile ?? null, product: input.product ?? null, active: input.active },
+        data: {
+          name: input.name,
+          bankId: input.loanGroup ? null : (input.bankId ?? null),
+          loanType: input.loanGroup ? null : (input.loanType ?? null),
+          projectId: input.loanGroup ? null : (input.projectId ?? null),
+          profile: input.profile ?? null,
+          loanGroup: input.loanGroup ?? null,
+          product: input.product ?? null,
+          active: input.active,
+        },
       });
       const keep = new Set<string>();
       for (const [n, i] of input.items.entries()) {
         const existing = i.id ? before.items.find((x) => x.id === i.id) : undefined;
         if (existing) {
           keep.add(existing.id);
-          await tx.checklistTemplateItem.update({ where: { id: existing.id }, data: { name: i.name, required: i.required, hint: i.hint ?? null, active: i.active, sortOrder: n } });
+          await tx.checklistTemplateItem.update({ where: { id: existing.id }, data: { name: i.name, required: i.required, hint: i.hint ?? null, section: i.section, active: i.active, sortOrder: n } });
         } else {
-          await tx.checklistTemplateItem.create({ data: { templateId: id, name: i.name, required: i.required, hint: i.hint ?? null, active: i.active, sortOrder: n } });
+          await tx.checklistTemplateItem.create({ data: { templateId: id, name: i.name, required: i.required, hint: i.hint ?? null, section: i.section, active: i.active, sortOrder: n } });
         }
       }
       const removed = before.items.filter((x) => !keep.has(x.id)).map((x) => x.id);

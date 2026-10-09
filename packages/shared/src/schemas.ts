@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { CUSTOMER_PROFILES, MEASUREMENT_UNITS, PAYOUT_STATUSES, PROJECT_TYPES, UNIT_TYPES } from './enums';
+import { CHECKLIST_SECTIONS, CUSTOMER_PROFILES, LOAN_GROUPS, MEASUREMENT_UNITS, PAYOUT_STATUSES, PROJECT_TYPES, UNIT_TYPES } from './enums';
 
 const blankToUndefined = (v: unknown) => (v === '' || v === null ? undefined : v);
 
@@ -187,6 +187,8 @@ export const checklistTemplateSchema = z.object({
   bankId: optionalId,
   loanType: z.string().trim().max(40).optional().or(z.literal('').transform(() => undefined)).nullable(),
   projectId: optionalId,
+  /** HL_LAP / BUSINESS / USED_CAR: a list on the Checklist page for that loan family. */
+  loanGroup: z.enum(LOAN_GROUPS).optional().or(z.literal('').transform(() => undefined)).nullable(),
   /** Blank = every customer profile. */
   profile: z.enum(CUSTOMER_PROFILES).optional().or(z.literal('').transform(() => undefined)).nullable(),
   product: z.string().trim().max(80).optional().or(z.literal('').transform(() => undefined)).nullable(),
@@ -198,6 +200,7 @@ export const checklistTemplateSchema = z.object({
         name: z.string().trim().min(2, 'Enter the document name').max(120),
         required: z.boolean().default(true),
         hint: z.string().trim().max(200).optional().or(z.literal('').transform(() => undefined)),
+        section: z.enum(CHECKLIST_SECTIONS).default('OTHER'),
         active: z.boolean().default(true),
       }),
     )

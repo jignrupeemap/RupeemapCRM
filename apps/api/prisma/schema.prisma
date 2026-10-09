@@ -590,8 +590,10 @@ model ChecklistTemplate {
   bankId      String?   @map("bank_id") @db.Uuid
   loanType    String?   @map("loan_type")
   projectId   String?   @map("project_id") @db.Uuid
-  /// Customer profile (SALARIED, SENP, SEP, NRI, PENSIONER); null = all profiles.
+  /// Customer profile (SALARIED, SENP, SEP, NRI); null = all profiles.
   profile     String?
+  /// Loan family on the Checklist page (HL_LAP, BUSINESS, USED_CAR); null = older bank / loan-type list.
+  loanGroup   String?   @map("loan_group")
   product     String?
   active      Boolean   @default(true)
   createdById String    @map("created_by") @db.Uuid
@@ -602,6 +604,7 @@ model ChecklistTemplate {
 
   @@index([bankId, loanType])
   @@index([profile])
+  @@index([loanGroup, profile])
   @@map("checklist_templates")
 }
 
@@ -611,6 +614,8 @@ model ChecklistTemplateItem {
   name       String
   required   Boolean           @default(true)
   hint       String?
+  /// KYC, BUSINESS_PROOF, INCOME, EXISTING_LOAN, PROPERTY, VEHICLE, OTHER
+  section    String            @default("OTHER")
   sortOrder  Int               @default(0) @map("sort_order")
   active     Boolean           @default(true)
   template   ChecklistTemplate @relation(fields: [templateId], references: [id])

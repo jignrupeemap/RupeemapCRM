@@ -5,7 +5,7 @@
 import { PrismaClient } from '@prisma/client';
 import { hash, Algorithm } from '@node-rs/argon2';
 import { DEFAULT_LOAN_TYPES, normalizeName } from '@rupeemap/shared';
-import { seedProfileChecklists } from './profile-checklists';
+import { seedLoanChecklists } from './loan-checklists';
 
 const prisma = new PrismaClient();
 const DEMO_PASSWORD = 'Rupeemap@123';
@@ -173,7 +173,7 @@ async function main() {
     }
   }
 
-  await seedProfileChecklists(prisma, admin.id);
+  await seedLoanChecklists(prisma, admin.id);
 
   if (!(await prisma.bankCode.count())) {
     const codes = [

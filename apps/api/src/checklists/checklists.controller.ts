@@ -1,6 +1,6 @@
 import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Put, Query } from '@nestjs/common';
 import { z } from 'zod';
-import { CUSTOMER_PROFILES, caseChecklistUpdateSchema, caseProfileSchema, checklistTemplateSchema } from '@rupeemap/shared';
+import { CUSTOMER_PROFILES, LOAN_GROUPS, caseChecklistUpdateSchema, caseProfileSchema, checklistTemplateSchema } from '@rupeemap/shared';
 import { ChecklistsService } from './checklists.service';
 import { parse } from '../common/validate';
 import { CurrentUser, Meta, RequirePermission, type AuthUser, type RequestMeta } from '../common/auth-context';
@@ -8,10 +8,12 @@ import { CurrentUser, Meta, RequirePermission, type AuthUser, type RequestMeta }
 const resolveSchema = z.object({
   /** Optional: without a bank only the general (all-bank) checklists apply. */
   bankId: z.preprocess((v) => (v === '' ? undefined : v), z.string().uuid().optional()),
-  loanType: z.string().min(1, 'Choose a loan type').max(40),
+  loanType: z.preprocess((v) => (v === '' ? undefined : v), z.string().max(40).optional()),
+  /** HL_LAP / BUSINESS / USED_CAR (the buttons on the Checklist page). */
+  loanGroup: z.preprocess((v) => (v === '' ? undefined : v), z.enum(LOAN_GROUPS).optional()),
   profile: z.preprocess((v) => (v === '' ? undefined : v), z.enum(CUSTOMER_PROFILES).optional()),
   projectId: z.preprocess((v) => (v === '' ? undefined : v), z.string().uuid().optional()),
-});
+}).refine((v) => v.loanType || v.loanGroup, { message: 'Choose a loan', path: ['loanGroup'] });
 
 @Controller()
 export class ChecklistsController {

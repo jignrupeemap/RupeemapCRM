@@ -41,6 +41,32 @@ export const DEFAULT_LOAN_TYPES = [
   { code: 'OTHER', name: 'Other' },
 ] as const;
 
+/** Checklist page groups loans into three families, each with its own document lists. */
+export const LOAN_GROUPS = ['HL_LAP', 'BUSINESS', 'USED_CAR'] as const;
+export type LoanGroup = (typeof LOAN_GROUPS)[number];
+export const LOAN_GROUP_LABELS: Record<LoanGroup, string> = { HL_LAP: 'HL / LAP', BUSINESS: 'Business Loan', USED_CAR: 'Used Car Loan' };
+/** Which checklist family a case's loan type belongs to (null = no family, e.g. "Other"). */
+export function loanGroupOf(loanType: string | null | undefined): LoanGroup | null {
+  const t = (loanType ?? '').toUpperCase();
+  if (/HOME|MORTGAGE|LAP|PROPERTY|PLOT|CONSTRUCTION/.test(t)) return 'HL_LAP';
+  if (/BUSINESS|MSME|WORKING/.test(t)) return 'BUSINESS';
+  if (/CAR|VEHICLE|AUTO/.test(t)) return 'USED_CAR';
+  return null;
+}
+
+/** Sections a checklist is grouped into, in display order. */
+export const CHECKLIST_SECTIONS = ['KYC', 'BUSINESS_PROOF', 'INCOME', 'EXISTING_LOAN', 'PROPERTY', 'VEHICLE', 'OTHER'] as const;
+export type ChecklistSection = (typeof CHECKLIST_SECTIONS)[number];
+export const CHECKLIST_SECTION_LABELS: Record<ChecklistSection, string> = {
+  KYC: 'KYC documents',
+  BUSINESS_PROOF: 'Business proof',
+  INCOME: 'Income documents',
+  EXISTING_LOAN: 'Existing loan documents',
+  PROPERTY: 'Property documents',
+  VEHICLE: 'Vehicle documents',
+  OTHER: 'Other documents',
+};
+
 /** Customer income profile: decides which documents the bank asks for. */
 export const CUSTOMER_PROFILES = ['SALARIED', 'SENP', 'SEP', 'NRI'] as const;
 export type CustomerProfile = (typeof CUSTOMER_PROFILES)[number];
